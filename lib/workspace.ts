@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/client";
+import { getOperatorSelectedWorkspace } from "@/lib/operator";
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
 
 function normalizeInviteEmail(email: string) {
@@ -54,6 +55,11 @@ export async function getWorkspaceMembership(userId: string): Promise<{
   workspace: Workspace;
   role: WorkspaceRole;
 } | null> {
+  const operatorWorkspace = await getOperatorSelectedWorkspace(userId);
+  if (operatorWorkspace) {
+    return { workspace: operatorWorkspace, role: "ADMIN" };
+  }
+
   const membership = await prisma.workspaceMember.findFirst({
     where: { userId },
     include: { workspace: true },

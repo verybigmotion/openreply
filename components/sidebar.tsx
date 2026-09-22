@@ -7,6 +7,9 @@
  */
 
 import LanguageSwitcher from "@/components/language-switcher";
+import OperatorWorkspaceSwitcher, {
+  type OperatorWorkspaceOption,
+} from "@/components/operator-workspace-switcher";
 import { useI18n } from "@/lib/i18n/provider";
 import Link from "next/link";
 import Image from "next/image";
@@ -27,15 +30,22 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   workspaceName: string;
+  operatorWorkspaces?: OperatorWorkspaceOption[] | null;
+  currentWorkspaceId?: string;
 }
 
 export default function Sidebar({
   isOpen,
   onClose,
   workspaceName,
+  operatorWorkspaces,
+  currentWorkspaceId,
 }: SidebarProps) {
   const { t } = useI18n();
   const pathname = usePathname();
+  const items = operatorWorkspaces
+    ? [...navItems, { label: "Operator", href: "/operator" } as const]
+    : navItems;
 
   return (
     <>
@@ -67,7 +77,7 @@ export default function Sidebar({
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + "/");
             return (
@@ -93,7 +103,16 @@ export default function Sidebar({
 
         <div className="px-5 py-4 border-t border-border">
           <div className="mb-4"><LanguageSwitcher /></div>
-          <p className="text-sm text-foreground truncate">{workspaceName}</p>
+          {operatorWorkspaces && currentWorkspaceId ? (
+            <div className="mb-4">
+              <OperatorWorkspaceSwitcher
+                workspaces={operatorWorkspaces}
+                currentWorkspaceId={currentWorkspaceId}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-foreground truncate">{workspaceName}</p>
+          )}
           <p className="text-xs text-muted">{t("Self-hosted")}</p>
           <a
             href={zernioLink({ placement: "sidebar" })}

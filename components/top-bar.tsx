@@ -22,6 +22,7 @@ const pageTitles: Record<string, StaticMessageKey> = {
   "/logs": "DM Logs",
   "/settings": "Settings",
   "/diagnostics": "Diagnostics",
+  "/operator": "Operator",
 };
 
 interface TopBarProps {
