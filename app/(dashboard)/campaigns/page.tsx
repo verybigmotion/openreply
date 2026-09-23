@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
+import { useOperator } from "@/components/operator-context";
 import { readCache, writeCache } from "@/lib/client-cache";
 
 interface Campaign {
@@ -81,6 +82,7 @@ export default function CampaignsPage() {
     postUrl: string | null;
   } | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const operator = useOperator();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">(
@@ -242,15 +244,20 @@ export default function CampaignsPage() {
   // The copy is made server-side from the stored campaign, so settings this
   // list never loads (the DM trigger, the follow-up, the link button label)
   // still come along.
-  async function duplicateAutomation(id: string) {
+  async function duplicateAutomation(id: string, targetWorkspaceId?: string) {
     setMenuOpenId(null);
     try {
-      const res = await fetch(`/api/automations/duplicate?id=${id}`, {
+      const target = targetWorkspaceId ? `&targetWorkspaceId=${targetWorkspaceId}` : "";
+      const res = await fetch(`/api/automations/duplicate?id=${id}${target}`, {
         method: "POST",
       });
       const data = await res.json();
-      if (data.success) void fetchAutomations();
-      else console.error("Duplicate failed:", data.error);
+      if (data.success) {
+        if (targetWorkspaceId) alert(t("Campaign copied. It is paused until you pick a post there."));
+        else void fetchAutomations();
+      } else {
+        alert(data.error);
+      }
     } catch (err) {
       console.error("Failed to duplicate:", err);
     }
@@ -558,6 +565,27 @@ export default function CampaignsPage() {
                         >
                           {t("Duplicate")}
                         </button>
+                        {operator && (
+                          <label className="block px-3 py-2 text-sm text-foreground">
+                            <span className="block text-xs text-muted">{t("Copy to workspace")}</span>
+                            <select
+                              defaultValue=""
+                              onChange={(event) => {
+                                if (event.target.value) void duplicateAutomation(auto.id, event.target.value);
+                              }}
+                              className="mt-1 w-full rounded border border-border bg-surface px-1 py-1 text-sm"
+                            >
+                              <option value="">…</option>
+                              {operator.workspaces
+                                .filter((workspace) => workspace.id !== operator.currentWorkspaceId)
+                                .map((workspace) => (
+                                  <option key={workspace.id} value={workspace.id}>
+                                    {workspace.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                        )}
                         <button
                           onClick={() => {
                             setMenuOpenId(null);

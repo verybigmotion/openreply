@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/top-bar";
+import { OperatorProvider } from "@/components/operator-context";
 import type { OperatorWorkspaceOption } from "@/components/operator-workspace-switcher";
 
 interface DashboardShellProps {
@@ -23,10 +24,13 @@ export default function DashboardShell({
   currentWorkspaceId,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const operator =
+    operatorWorkspaces && currentWorkspaceId
+      ? { workspaces: operatorWorkspaces, currentWorkspaceId }
+      : null;
 
   return (
-    // h-dvh, not h-screen: on mobile browsers the URL bar eats into 100vh, which
-    // would push the composer and pagination controls below the fold.
+    <OperatorProvider value={operator}>
     <div className="flex h-dvh overflow-hidden bg-background">
       <Sidebar
         isOpen={sidebarOpen}
@@ -53,5 +57,6 @@ export default function DashboardShell({
         </main>
       </div>
     </div>
+    </OperatorProvider>
   );
 }

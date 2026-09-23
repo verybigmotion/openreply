@@ -37,9 +37,11 @@ export function buildDuplicateName(name: string): string {
 export async function duplicateCampaign({
   automationId,
   workspaceId,
+  targetWorkspaceId = workspaceId,
 }: {
   automationId: string;
   workspaceId: string;
+  targetWorkspaceId?: string;
 }) {
   const source = await prisma.automation.findFirst({
     where: { id: automationId, workspaceId },
@@ -47,6 +49,16 @@ export async function duplicateCampaign({
   });
 
   if (!source) return null;
+
+  const crossWorkspace = targetWorkspaceId !== workspaceId;
+  const targetAccount = crossWorkspace
+    ? await prisma.instagramAccount.findFirst({
+        where: { workspaceId: targetWorkspaceId },
+        orderBy: { connectedAt: "asc" },
+        select: { id: true },
+      })
+    : null;
+  if (crossWorkspace && !targetAccount) return null;
 
   // Every setting on the row carries over. The links are recreated rather than
   // spread, since they are rows of their own.
@@ -62,14 +74,23 @@ export async function duplicateCampaign({
       id: undefined,
       createdAt: undefined,
       updatedAt: undefined,
-      name: buildDuplicateName(settings.name),
+      name: crossWorkspace ? settings.name : buildDuplicateName(settings.name),
       isActive: false,
       reportShareSlug: generateReportShareSlug(),
+      ...(crossWorkspace && targetAccount
+        ? {
+            workspaceId: targetWorkspaceId,
+            instagramAccountId: targetAccount.id,
+            postId: null,
+            postUrl: null,
+            pendingNextReel: false,
+          }
+        : {}),
       trackedLinks: {
         // Numbered from the order just read, so the copy's buttons match
         // the original's even if the original's positions have gaps or ties.
         create: trackedLinks.map((link, position) => ({
-          workspaceId: source.workspaceId,
+          workspaceId: targetWorkspaceId,
           slug: generateTrackedLinkSlug(),
           label: link.label,
           destinationUrl: link.destinationUrl,
