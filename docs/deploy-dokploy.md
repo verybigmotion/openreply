@@ -115,3 +115,13 @@ when most of the comments arrive.
 9. Check `https://your-domain/api/health` — confirms database, Redis, queue, and worker heartbeat are all healthy.
 
 From here, the Meta app setup, OAuth redirect, and webhook configuration are identical to the standard setup in `docs/setup.md`.
+
+## Production flow: image built in CI, Dokploy only pulls
+
+Building on the server takes 15–20 minutes and nearly OOMs a 2 GB host, so production does not do that. Instead:
+
+1. A push to `main` runs `.github/workflows/docker-publish.yml`, which builds a `linux/arm64` image on a native arm runner and pushes it to `ghcr.io/verybigmotion/openreply:latest` (and `:<sha>`).
+2. The last workflow step `POST`s the Dokploy compose webhook stored in the `DOKPLOY_WEBHOOK_URL` repo secret. There is no GitHub webhook on push, so Dokploy never deploys before the image exists.
+3. Dokploy pulls the image and recreates web, worker and cron from `docker-compose.prod.yml`, which has no `build:` entries. The GHCR package is public, so no registry credentials are needed.
+
+A deploy is pull + recreate only, well under a minute after the image is published.

@@ -1,6 +1,6 @@
 services:
   web:
-    build: .
+    image: ghcr.io/verybigmotion/openreply:latest
     restart: unless-stopped
     command: ["sh", "-c", "npx prisma migrate deploy && npm run start"]
     env_file: .env
@@ -17,7 +17,7 @@ services:
       start_period: 40s
 
   worker:
-    build: .
+    image: ghcr.io/verybigmotion/openreply:latest
     restart: unless-stopped
     command: ["npm", "run", "worker"]
     env_file: .env
@@ -26,7 +26,7 @@ services:
         condition: service_healthy
 
   cron:
-    build: .
+    image: ghcr.io/verybigmotion/openreply:latest
     restart: unless-stopped
     command: ["sh", "scripts/cron.sh"]
     env_file: .env
