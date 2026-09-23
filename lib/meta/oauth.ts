@@ -133,8 +133,7 @@ export async function exchangeCodeForToken(
   }
   console.info("[Instagram OAuth] code exchange", {
     keys: Object.keys(data),
-    tokenPrefix: String(data.access_token).slice(0, 4),
-    tokenLength: String(data.access_token).length,
+    token: data.access_token,
     permissions: data.permissions,
   });
   return {
