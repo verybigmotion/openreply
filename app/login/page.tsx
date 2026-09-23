@@ -9,6 +9,8 @@ const LOGIN_ERRORS: Record<string, StaticMessageKey> = {
   instagram_denied: "Instagram sign-in was cancelled.",
   instagram_taken: "This Instagram account is already connected to another workspace.",
   instagram_failed: "Instagram sign-in failed. Please try again.",
+  instagram_not_tester:
+    "Your Instagram account has no access to this app yet. Ask us for an invite, then accept it in Instagram: Settings → Website permissions → Tester invites.",
   instagram_misconfigured: "Instagram sign-in is not configured on this server.",
 };
 

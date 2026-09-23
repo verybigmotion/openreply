@@ -2,7 +2,12 @@ import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/client";
 import { getBaseUrl } from "@/lib/env";
-import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } from "@/lib/meta/client";
+import {
+  PermissionError,
+  getLongLivedToken,
+  getUserInfo,
+  subscribeInstagramAccountToWebhooks,
+} from "@/lib/meta/client";
 import { encryptToken, exchangeCodeForToken } from "@/lib/meta/oauth";
 
 const INSTAGRAM_PROVIDER = "instagram";
@@ -10,7 +15,7 @@ const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type InstagramLoginResult =
   | { ok: true }
-  | { ok: false; reason: "instagram_taken" | "instagram_failed"; detail?: string };
+  | { ok: false; reason: "instagram_taken" | "instagram_failed" | "instagram_not_tester"; detail?: string };
 
 export async function signInWithInstagram(code: string): Promise<InstagramLoginResult> {
   try {
@@ -60,6 +65,9 @@ export async function signInWithInstagram(code: string): Promise<InstagramLoginR
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Unknown error";
     console.error("[Instagram Login] Error:", error);
+    if (error instanceof PermissionError && detail.includes("Unsupported request")) {
+      return { ok: false, reason: "instagram_not_tester", detail };
+    }
     return { ok: false, reason: "instagram_failed", detail };
   }
 }

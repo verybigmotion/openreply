@@ -97,6 +97,7 @@
   "Instagram sign-in was cancelled.": "已取消 Instagram 登入。",
   "This Instagram account is already connected to another workspace.": "此 Instagram 帳號已連結至其他工作區。",
   "Instagram sign-in failed. Please try again.": "Instagram 登入失敗，請再試一次。",
+  "Your Instagram account has no access to this app yet. Ask us for an invite, then accept it in Instagram: Settings → Website permissions → Tester invites.": "你的 Instagram 帳號尚未取得此應用程式的存取權。請向我們索取邀請，然後在 Instagram 中接受：設定 → 網站權限 → 測試人員邀請。",
   "Instagram sign-in is not configured on this server.": "此伺服器尚未設定 Instagram 登入。",
   "Could not switch workspace. Please try again.": "無法切換工作區，請再試一次。",
   "Could not change language. Please try again.": "無法切換語言，請再試一次。",
