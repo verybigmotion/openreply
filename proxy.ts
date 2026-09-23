@@ -19,6 +19,10 @@ export function proxy(request: NextRequest) {
   const isLogin = pathname === "/login";
   const isAuthenticated = hasSessionCookie(request);
 
+  if (pathname === "/") {
+    return NextResponse.redirect(new URL(isAuthenticated ? "/dashboard" : "/login", request.url));
+  }
+
   if (isProtected && !isAuthenticated) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
@@ -34,6 +38,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
     "/dashboard/:path*",
     "/automations/:path*",
     "/logs/:path*",
