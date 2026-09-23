@@ -1,8 +1,16 @@
 import { EMAIL_PROVIDER_ID, signIn } from "@/lib/auth";
 import { getI18n } from "@/lib/i18n/server";
+import type { StaticMessageKey } from "@/lib/i18n";
 import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
 import { DemoNotice } from "@/components/demo-notice";
 import { isPublicDemoHost } from "@/lib/env";
+
+const LOGIN_ERRORS: Record<string, StaticMessageKey> = {
+  instagram_denied: "Instagram sign-in was cancelled.",
+  instagram_taken: "This Instagram account is already connected to another workspace.",
+  instagram_failed: "Instagram sign-in failed. Please try again.",
+  instagram_misconfigured: "Instagram sign-in is not configured on this server.",
+};
 
 const GITHUB_URL = "https://github.com/diwenne/openreply";
 const SETUP_DOCS_URL = `${GITHUB_URL}/blob/main/docs/setup.md`;
@@ -22,6 +30,7 @@ export default async function LoginPage({
     checkEmail?: string;
     callbackUrl?: string;
     template?: string;
+    error?: string;
   }>;
 }) {
   const { t } = await getI18n();
@@ -60,6 +69,7 @@ export default async function LoginPage({
     ? `/campaigns/new?template=${selectedTemplate.slug}`
     : null;
   const callbackUrl = params.callbackUrl ?? templateCallbackUrl ?? "/dashboard";
+  const loginError = LOGIN_ERRORS[params.error ?? ""];
 
   async function sendMagicLink(formData: FormData) {
     "use server";
@@ -105,6 +115,23 @@ export default async function LoginPage({
               </p>
             </div>
           ) : (
+            <>
+            {loginError && (
+              <p role="alert" className="mb-5 text-sm text-error">
+                {t(loginError)}
+              </p>
+            )}
+            <a
+              href="/api/instagram/login"
+              className="w-full inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-indigo-500/25 transition-all hover:shadow-indigo-500/30"
+            >
+              {t("Continue with Instagram")}
+            </a>
+            <div className="my-5 flex items-center gap-3 text-xs text-muted">
+              <span className="h-px flex-1 bg-border" />
+              <span>{t("or")}</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
             <form action={sendMagicLink} className="space-y-5">
               <div className="space-y-2">
                 <label
@@ -131,6 +158,7 @@ export default async function LoginPage({
                 {t("Email me a magic link")}
               </button>
             </form>
+            </>
           )}
         </div>
       </div>

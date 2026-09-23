@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
+  createLoginOAuthState,
   createOAuthState,
   decryptToken,
   encryptToken,
@@ -24,6 +25,11 @@ describe("OAuth state and token encryption", () => {
   it("signs and verifies Instagram OAuth state", () => {
     const state = createOAuthState("workspace_123");
     expect(verifyOAuthState(state)?.workspaceId).toBe("workspace_123");
+  });
+
+  it("marks login state so the callback can tell it from a connect", () => {
+    expect(verifyOAuthState(createLoginOAuthState())?.login).toBe(true);
+    expect(verifyOAuthState(createOAuthState("workspace_123"))?.login).toBeUndefined();
   });
 
   it("rejects tampered OAuth state", () => {

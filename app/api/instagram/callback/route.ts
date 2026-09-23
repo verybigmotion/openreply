@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { getBaseUrl } from "@/lib/env";
 import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
+import { signInWithInstagram } from "@/lib/instagram-login";
 import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } from "@/lib/meta/client";
 import {
   encryptToken,
@@ -16,6 +17,13 @@ export async function GET(request: NextRequest) {
   const error = request.nextUrl.searchParams.get("error");
   const state = verifyOAuthState(request.nextUrl.searchParams.get("state"));
   const baseUrl = getBaseUrl();
+
+  if (state?.login) {
+    if (error || !code) return NextResponse.redirect(`${baseUrl}/login?error=instagram_denied`);
+    const result = await signInWithInstagram(code);
+    if (result.ok) return NextResponse.redirect(`${baseUrl}/dashboard?connected=true`);
+    return NextResponse.redirect(`${baseUrl}/login?error=${result.reason}`);
+  }
 
   if (error) {
     return NextResponse.redirect(`${baseUrl}/settings?instagram=denied`);

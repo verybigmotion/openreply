@@ -22,7 +22,10 @@ const STATE_MAX_AGE_MS = 10 * 60 * 1000;
 interface OAuthStatePayload {
   workspaceId: string;
   ts: number;
+  login?: boolean;
 }
+
+export const LOGIN_STATE_WORKSPACE = "login";
 
 function base64UrlEncode(value: string): string {
   return Buffer.from(value).toString("base64url");
@@ -41,6 +44,17 @@ function signState(payload: string): string {
 export function createOAuthState(workspaceId: string): string {
   const payload = base64UrlEncode(
     JSON.stringify({ workspaceId, ts: Date.now() } satisfies OAuthStatePayload)
+  );
+  return `${payload}.${signState(payload)}`;
+}
+
+export function createLoginOAuthState(): string {
+  const payload = base64UrlEncode(
+    JSON.stringify({
+      workspaceId: LOGIN_STATE_WORKSPACE,
+      ts: Date.now(),
+      login: true,
+    } satisfies OAuthStatePayload)
   );
   return `${payload}.${signState(payload)}`;
 }
