@@ -126,7 +126,11 @@ export async function exchangeCodeForToken(
     );
   }
 
-  const data = await response.json();
+  const raw = await response.json();
+  const data = Array.isArray(raw.data) ? raw.data[0] : raw;
+  if (!data?.access_token) {
+    throw new Error(`Token exchange returned no access_token: ${JSON.stringify(raw).slice(0, 200)}`);
+  }
   return {
     accessToken: data.access_token,
     userId: String(data.user_id),
