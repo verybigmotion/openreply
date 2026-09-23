@@ -131,6 +131,12 @@ export async function exchangeCodeForToken(
   if (!data?.access_token) {
     throw new Error(`Token exchange returned no access_token: ${JSON.stringify(raw).slice(0, 200)}`);
   }
+  console.info("[Instagram OAuth] code exchange", {
+    keys: Object.keys(data),
+    tokenPrefix: String(data.access_token).slice(0, 4),
+    tokenLength: String(data.access_token).length,
+    permissions: data.permissions,
+  });
   return {
     accessToken: data.access_token,
     userId: String(data.user_id),
