@@ -51,7 +51,7 @@ export default function DashboardShell({
             allow horizontal scrolling too, which lets a wide child drag the
             whole page sideways on a phone. */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="px-4 lg:px-8 py-5 sm:py-6 max-w-7xl mx-auto">
+          <div key={currentWorkspaceId} className="px-4 lg:px-8 py-5 sm:py-6 max-w-7xl mx-auto">
             {children}
           </div>
         </main>
