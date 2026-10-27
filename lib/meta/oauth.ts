@@ -98,7 +98,7 @@ export function getAuthorizationUrl(redirectUri: string, state: string): string 
     state,
   });
 
-  return `${INSTAGRAM_OAUTH_URL}?${params.toString()}`;
+  return `${INSTAGRAM_OAUTH_URL}?${params.toString()}#weblink`;
 }
 
 export async function exchangeCodeForToken(

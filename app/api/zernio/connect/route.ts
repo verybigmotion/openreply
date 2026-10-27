@@ -12,5 +12,6 @@ export const POST = withZernioManagement(async ({ workspaceId }) => {
   const result = z.object({ authUrl: z.url() }).parse(await zernioRequest({ apiKey: connection.apiKey, path: `/connect/instagram?${params}` }));
   const url = new URL(result.authUrl);
   if (url.protocol !== 'https:' || !['instagram.com', 'www.instagram.com', 'facebook.com', 'www.facebook.com', 'zernio.com'].includes(url.hostname)) throw new ConnectionError('Zernio returned an unexpected connection URL.', 502);
-  return NextResponse.json({ success: true, data: { authUrl: result.authUrl } });
+  if (url.hostname.endsWith('instagram.com') && !url.hash) url.hash = 'weblink';
+  return NextResponse.json({ success: true, data: { authUrl: url.toString() } });
 });
