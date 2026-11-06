@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { unstable_isUnrecognizedActionError, useRouter } from "next/navigation";
 import { setOperatorWorkspace } from "@/lib/operator-actions";
 import { useI18n } from "@/lib/i18n/provider";
 
@@ -37,7 +37,11 @@ export default function OperatorWorkspaceSwitcher({
               try {
                 await setOperatorWorkspace(workspaceId);
                 router.refresh();
-              } catch {
+              } catch (error) {
+                if (unstable_isUnrecognizedActionError(error)) {
+                  window.location.reload();
+                  return;
+                }
                 setFailed(true);
               }
             });
