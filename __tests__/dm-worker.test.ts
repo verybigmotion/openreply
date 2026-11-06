@@ -16,6 +16,7 @@ const {
   mockQueueAdd,
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
+  mockFindAwaitedCampaignId,
 } = vi.hoisted(() => ({
   mockPrisma: {
     zernioConnection: { findUnique: vi.fn() },
@@ -52,6 +53,11 @@ const {
   mockQueueAdd: vi.fn(),
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
+  mockFindAwaitedCampaignId: vi.fn(),
+}));
+
+vi.mock("@/lib/queue/awaited-campaign", () => ({
+  findAwaitedCampaignId: mockFindAwaitedCampaignId,
 }));
 
 vi.mock("@/lib/db/client", () => ({
@@ -235,6 +241,7 @@ beforeEach(() => {
   );
   mockPrisma.dmLog.upsert.mockResolvedValue({});
   mockPrisma.dmLog.update.mockResolvedValue({});
+  mockFindAwaitedCampaignId.mockResolvedValue("auto_789");
   mockPrisma.instagramAccount.findUnique.mockResolvedValue({
     workspaceId: "workspace_123",
   });
@@ -752,6 +759,29 @@ describe("DM Worker — Full Pipeline", () => {
       })
     );
 
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+    expect(mockReserveWorkspaceDMSend).not.toHaveBeenCalled();
+  });
+
+  it("should not deliver a read fallback for a campaign a newer opening DM superseded", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue({
+      ...mockAutomation,
+      trackedLinks: [],
+    });
+    mockFindAwaitedCampaignId.mockResolvedValue("auto_newer");
+
+    const processor = getProcessor();
+    await processor(
+      createMockPostbackJob({
+        instagramAccountId: "ig_456",
+        userId: "commenter_999",
+        payload: "reveal:auto_789",
+        fallback: true,
+      })
+    );
+
+    expect(mockFindAwaitedCampaignId).toHaveBeenCalledWith("ig_456", "commenter_999");
     expect(mockSendDirectMessage).not.toHaveBeenCalled();
     expect(mockReserveWorkspaceDMSend).not.toHaveBeenCalled();
   });

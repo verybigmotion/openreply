@@ -44,6 +44,7 @@ import {
   renderMessageWithoutLink,
 } from "@/lib/tracking/message";
 import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
+import { findAwaitedCampaignId } from "@/lib/queue/awaited-campaign";
 
 import {
   ZernioApiError,
@@ -838,6 +839,11 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     if (
       existingReveal?.status === "SENT" ||
       existingReveal?.dmDeliveryUnconfirmed
+    )
+      return;
+    if (
+      (await findAwaitedCampaignId(instagramAccountId, userId)) !==
+      automation.id
     )
       return;
   }
