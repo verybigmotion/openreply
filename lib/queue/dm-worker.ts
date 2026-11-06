@@ -32,7 +32,12 @@ import {
   type InstagramContext,
 } from "@/lib/instagram/provider";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
-import { reserveDMSlot, releaseDMSlot } from "@/lib/utils/rate-limiter";
+import {
+  MAX_REQUEUE_ATTEMPTS,
+  pauseDMSends,
+  reserveDMSlot,
+  releaseDMSlot,
+} from "@/lib/utils/rate-limiter";
 import {
   releaseWorkspaceDMReservation,
   reserveWorkspaceDMSend,
@@ -716,6 +721,10 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         },
       });
     } catch (error) {
+      const pauseDelayMs =
+        error instanceof RateLimitError
+          ? await pauseDMSends(instagramAccountId)
+          : null;
       // The rate slot was reserved before the send; this send did not deliver a
       // DM, so hand the slot back instead of burning it (and burning more on
       // each BullMQ retry) until the hourly TTL expires.
@@ -726,6 +735,35 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         automation.workspaceId,
         usage.periodStart
       );
+
+      if (pauseDelayMs !== null) {
+        const givesUp = requeueAttempt >= MAX_REQUEUE_ATTEMPTS;
+        await prisma.dmLog.update({
+          where: {
+            automationId_commentId: {
+              automationId: automation.id,
+              commentId,
+            },
+          },
+          data: {
+            status: givesUp ? "SKIPPED_RATE_LIMIT" : "PENDING",
+            errorMessage: formatError(error),
+          },
+        });
+        if (givesUp) continue;
+        await getDMQueue().add(
+          "process-comment",
+          {
+            ...job.data,
+            requeueAttempt: requeueAttempt + 1,
+          },
+          {
+            delay: pauseDelayMs,
+            jobId: `comment_${instagramAccountId}_${commentId}_retry_${requeueAttempt + 1}`,
+          }
+        );
+        continue;
+      }
 
       await prisma.dmLog.update({
         where: {

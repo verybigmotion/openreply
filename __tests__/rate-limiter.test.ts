@@ -7,8 +7,10 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockGet, mockEval, mockDel, mockDecr } = vi.hoisted(() => ({
+const { mockGet, mockEval, mockDel, mockDecr, mockSet, mockPttl } = vi.hoisted(() => ({
   mockGet: vi.fn(),
+  mockSet: vi.fn(),
+  mockPttl: vi.fn(),
   mockEval: vi.fn(),
   mockDel: vi.fn(),
   mockDecr: vi.fn(),
@@ -22,6 +24,8 @@ vi.mock("ioredis", () => {
     this.eval = mockEval;
     this.del = mockDel;
     this.decr = mockDecr;
+    this.set = mockSet;
+    this.pttl = mockPttl;
     return this;
   });
   return { default: MockRedis };
@@ -34,6 +38,7 @@ import {
   incrementDMCounter,
   reserveDMSlot,
   releaseDMSlot,
+  pauseDMSends,
   RATE_LIMIT_MAX,
 } from "../lib/utils/rate-limiter";
 
@@ -94,8 +99,9 @@ describe("reserveDMSlot", () => {
 
     expect(mockEval).toHaveBeenCalledWith(
       expect.any(String),
-      1,
+      2,
       "rate:dm:account_123",
+      "pause:dm:account_123",
       RATE_LIMIT_MAX,
       3600
     );
@@ -114,6 +120,8 @@ describe("reserveDMSlot", () => {
     expect(result.reserved).toBe(false);
     expect(result.shouldRequeue).toBe(true);
     expect(result.shouldSkip).toBe(false);
+    expect(result.requeueDelayMs).toBeGreaterThanOrEqual(30 * 60 * 1000);
+    expect(result.requeueDelayMs).toBeLessThan(35 * 60 * 1000);
   });
 
   it("should skip after max requeue attempts", async () => {
@@ -124,6 +132,36 @@ describe("reserveDMSlot", () => {
     expect(result.allowed).toBe(false);
     expect(result.shouldRequeue).toBe(false);
     expect(result.shouldSkip).toBe(true);
+  });
+});
+
+describe("pauseDMSends", () => {
+  it("pauses the account in its own key without touching the hourly counter", async () => {
+    mockPttl.mockResolvedValue(1800 * 1000);
+
+    const delay = await pauseDMSends("account_123");
+
+    expect(mockSet).toHaveBeenCalledWith(
+      "pause:dm:account_123",
+      "1",
+      "EX",
+      1800,
+      "NX"
+    );
+    expect(mockEval).not.toHaveBeenCalled();
+    expect(mockDecr).not.toHaveBeenCalled();
+    expect(mockDel).not.toHaveBeenCalled();
+    expect(delay).toBeGreaterThanOrEqual(30 * 60 * 1000);
+    expect(delay).toBeLessThan(35 * 60 * 1000);
+  });
+
+  it("schedules the retry after an already running pause instead of extending it", async () => {
+    mockPttl.mockResolvedValue(10 * 60 * 1000);
+
+    const delay = await pauseDMSends("account_123");
+
+    expect(delay).toBeGreaterThanOrEqual(10 * 60 * 1000);
+    expect(delay).toBeLessThan(15 * 60 * 1000);
   });
 });
 

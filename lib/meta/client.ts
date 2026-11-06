@@ -133,6 +133,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
       case 368:
       case 4:
       case 17:
+      case 613:
         throw new RateLimitError(message, traceId);
       case 10:
       case 100:

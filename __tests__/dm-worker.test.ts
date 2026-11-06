@@ -13,6 +13,7 @@ const {
   mockMatchKeywords,
   mockReserveDMSlot,
   mockReleaseDMSlot,
+  mockPauseDMSends,
   mockQueueAdd,
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
@@ -50,6 +51,7 @@ const {
   mockMatchKeywords: vi.fn(),
   mockReserveDMSlot: vi.fn(),
   mockReleaseDMSlot: vi.fn(),
+  mockPauseDMSends: vi.fn(),
   mockQueueAdd: vi.fn(),
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
@@ -105,6 +107,8 @@ vi.mock("@/lib/utils/keyword-matcher", () => ({
 vi.mock("@/lib/utils/rate-limiter", () => ({
   reserveDMSlot: mockReserveDMSlot,
   releaseDMSlot: mockReleaseDMSlot,
+  pauseDMSends: mockPauseDMSends,
+  MAX_REQUEUE_ATTEMPTS: 3,
 }));
 
 vi.mock("@/lib/billing/usage", () => ({
@@ -462,6 +466,69 @@ describe("DM Worker — Full Pipeline", () => {
         delay: 1800000,
         jobId: "comment_ig_456_comment_555_retry_1",
       })
+    );
+  });
+
+  it("pauses the account and requeues without spending an attempt when Instagram rate limits the send", async () => {
+    const { RateLimitError } = await import("@/lib/meta/client");
+    mockSendPrivateReply.mockRejectedValue(new RateLimitError("limit", "trace"));
+    mockPauseDMSends.mockResolvedValue(1800000);
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockPauseDMSends).toHaveBeenCalledWith("ig_456");
+    expect(mockReleaseDMSlot).toHaveBeenCalledWith("ig_456");
+    expect(mockPauseDMSends.mock.invocationCallOrder[0]).toBeLessThan(
+      mockReleaseDMSlot.mock.invocationCallOrder[0]
+    );
+    expect(mockReleaseWorkspaceDMReservation).toHaveBeenCalledWith(
+      "workspace_123",
+      usagePeriodStart
+    );
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "process-comment",
+      expect.objectContaining({ requeueAttempt: 1 }),
+      expect.objectContaining({
+        delay: 1800000,
+        jobId: "comment_ig_456_comment_555_retry_1",
+      })
+    );
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "PENDING" }),
+      })
+    );
+  });
+
+  it("stops requeueing once Instagram keeps rate limiting after max requeue attempts", async () => {
+    const { RateLimitError } = await import("@/lib/meta/client");
+    mockSendPrivateReply.mockRejectedValue(new RateLimitError("limit", "trace"));
+    mockPauseDMSends.mockResolvedValue(1800000);
+
+    const processor = getProcessor();
+    await processor(createMockJob({ ...mockJobData, requeueAttempt: 3 }));
+
+    expect(mockQueueAdd).not.toHaveBeenCalled();
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "SKIPPED_RATE_LIMIT" }),
+      })
+    );
+  });
+
+  it("still requeues on the last attempt before the cap", async () => {
+    const { RateLimitError } = await import("@/lib/meta/client");
+    mockSendPrivateReply.mockRejectedValue(new RateLimitError("limit", "trace"));
+    mockPauseDMSends.mockResolvedValue(1800000);
+
+    const processor = getProcessor();
+    await processor(createMockJob({ ...mockJobData, requeueAttempt: 2 }));
+
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "process-comment",
+      expect.objectContaining({ requeueAttempt: 3 }),
+      expect.objectContaining({ jobId: "comment_ig_456_comment_555_retry_3" })
     );
   });
 

@@ -20,6 +20,11 @@ const RATE_LIMIT_MAX = 750; // private replies per hour, per Meta's documented c
 const RATE_LIMIT_WINDOW = 3600; // 1 hour in seconds
 const REQUEUE_DELAY_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_REQUEUE_ATTEMPTS = 3;
+const REQUEUE_JITTER_MS = 5 * 60 * 1000;
+
+function jitterMs(): number {
+  return Math.floor(Math.random() * REQUEUE_JITTER_MS);
+}
 
 let redis: Redis | null = null;
 
@@ -47,7 +52,7 @@ local current = tonumber(redis.call("GET", KEYS[1]) or "0")
 local max = tonumber(ARGV[1])
 local ttl = tonumber(ARGV[2])
 
-if current >= max then
+if current >= max or redis.call("EXISTS", KEYS[2]) == 1 then
   return {0, current, 0}
 end
 
@@ -86,7 +91,7 @@ function blockedResult(
     currentCount: count,
     remainingDMs: 0,
     shouldRequeue: true,
-    requeueDelayMs: REQUEUE_DELAY_MS,
+    requeueDelayMs: REQUEUE_DELAY_MS + jitterMs(),
     shouldSkip: false,
     reserved: false,
   };
@@ -163,8 +168,9 @@ export async function reserveDMSlot(
 
   const result = await client.eval(
     RESERVE_DM_SLOT_SCRIPT,
-    1,
+    2,
     key,
+    pauseKey(instagramAccountId),
     RATE_LIMIT_MAX,
     RATE_LIMIT_WINDOW
   );
@@ -214,6 +220,20 @@ export async function releaseDMSlot(
     return 0;
   }
   return next;
+}
+
+function pauseKey(instagramAccountId: string): string {
+  return `pause:dm:${instagramAccountId}`;
+}
+
+export async function pauseDMSends(
+  instagramAccountId: string
+): Promise<number> {
+  const client = getRedis();
+  const key = pauseKey(instagramAccountId);
+  await client.set(key, "1", "EX", REQUEUE_DELAY_MS / 1000, "NX");
+  const remainingMs = Math.max(await client.pttl(key), 0);
+  return remainingMs + jitterMs();
 }
 
 /**
