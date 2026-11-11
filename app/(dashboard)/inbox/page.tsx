@@ -219,7 +219,7 @@ export default function InboxPage() {
 
     // Optimistically show the reply immediately, then confirm with the server.
     const optimistic: ThreadMessage = {
-      id: `optimistic-${Date.now()}`,
+      id: `optimistic-${crypto.randomUUID()}`,
       text,
       fromMe: true,
       fromUsername: null,
