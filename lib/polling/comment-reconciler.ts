@@ -34,10 +34,11 @@ import {
   type InstagramComment,
 } from "@/lib/instagram/provider";
 import {
-  createInstagramContext,
-  type InstagramContext,
+  createSocialAccountContext,
+  type SocialAccountContext,
 } from "@/lib/instagram/provider";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
+import type { SocialPlatform } from "@/lib/social-platform";
 
 // Only consider comments from the last few days — older ones are outside
 // Instagram's private-reply window anyway, so a DM to them would just fail.
@@ -78,13 +79,14 @@ export async function reconcileComments(): Promise<void> {
       wholeWordMatch: true,
       publicReplyEnabled: true,
       workspaceId: true,
-      instagramAccount: {
+      socialAccount: {
         select: {
           id: true,
-          instagramId: true,
+          externalId: true,
           username: true,
           accessToken: true,
           provider: true,
+          platform: true,
           workspaceId: true,
           zernioAccountId: true,
         },
@@ -93,7 +95,7 @@ export async function reconcileComments(): Promise<void> {
   });
 
   const sinceMs = Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000;
-  const tokenCache = new Map<string, InstagramContext | null>();
+  const tokenCache = new Map<string, SocialAccountContext | null>();
 
   for (const automation of automations) {
     const stat = await sweepCampaign({
@@ -128,20 +130,21 @@ async function sweepCampaign({
     keywords: string[];
     wholeWordMatch: boolean;
     publicReplyEnabled: boolean;
-    instagramAccount: {
+    socialAccount: {
       id: string;
-      instagramId: string;
+      externalId: string;
       username: string;
       accessToken: string;
       provider: "META" | "ZERNIO";
+      platform: SocialPlatform;
       workspaceId: string;
       zernioAccountId: string | null;
     };
   };
   sinceMs: number;
-  tokenCache: Map<string, InstagramContext | null>;
+  tokenCache: Map<string, SocialAccountContext | null>;
 }): Promise<SweepStat> {
-  const account = automation.instagramAccount;
+  const account = automation.socialAccount;
   const stat: SweepStat = {
     campaign: automation.name,
     keywords: automation.matchAnyWord
@@ -157,7 +160,7 @@ async function sweepCampaign({
   let accessToken = tokenCache.get(account.id);
   if (accessToken === undefined) {
     try {
-      accessToken = await createInstagramContext(account);
+      accessToken = await createSocialAccountContext(account);
     } catch {
       accessToken = null;
     }
@@ -206,7 +209,7 @@ async function sweepCampaign({
     // keyword, and (c) have no reply from the account owner yet.
     const needsAction = comments.filter((c) => {
       const authorId = c.from?.id;
-      if (!authorId || authorId === account.instagramId) return false;
+      if (!authorId || authorId === account.externalId) return false;
 
       const matched = automation.matchAnyWord
         ? true
@@ -219,7 +222,7 @@ async function sweepCampaign({
       stat.matched += 1;
 
       const ownerReplied = (c.replies?.data ?? []).some(
-        (r) => r.from?.id === account.instagramId
+        (r) => r.from?.id === account.externalId
       );
       if (ownerReplied) {
         stat.alreadyReplied += 1;
@@ -261,7 +264,7 @@ async function sweepCampaign({
       // above (owner-reply + DmLog guards) and the worker is idempotent
       // (publicReplySentAt / SENT), so re-processing a comment is safe.
       await queue.add("process-comment", {
-        instagramAccountId: account.instagramId,
+        instagramAccountId: account.externalId,
         accountConnectionId: account.id,
         commentId: c.id,
         commentText: c.text ?? "",

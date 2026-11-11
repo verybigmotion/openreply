@@ -11,7 +11,7 @@ describe('Zernio workspace management', () => {
       { _id: 'b', platform: 'instagram', profileId: 'other', platformUserId: 'ig2', username: 'other', isActive: true },
       { _id: 'c', platform: 'facebook', profileId: 'p', platformUserId: 'fb', username: 'page', isActive: true },
     ] });
-    expect(await listInstagramAccounts({ apiKey: 'key', profileId: 'p' })).toEqual([{ id: 'a', instagramId: 'ig1', username: 'mine', name: null }]);
+    expect(await listInstagramAccounts({ apiKey: 'key', profileId: 'p' })).toEqual([{ id: 'a', externalId: 'ig1', username: 'mine', name: null }]);
   });
   it('reuses only this installation webhook and preserves other subscriptions', async () => {
     request.mockResolvedValueOnce({ webhooks: [{ _id: 'other', url: 'https://customer.example/hook' }, { _id: 'ours', url: 'https://open.example/api/zernio/webhook/ws' }] }).mockResolvedValueOnce({});

@@ -6,6 +6,10 @@ const { mockPrisma } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       create: vi.fn(),
     },
+    socialAccount: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -20,7 +24,7 @@ import { TRACKED_LINK_ORDER } from "../lib/tracking/link-order";
 const sourceCampaign = {
   id: "automation_123",
   workspaceId: "workspace_123",
-  instagramAccountId: "account_123",
+  socialAccountId: "account_123",
   name: "Product Link Drop",
   goal: "Product link request",
   postId: "post_123",
@@ -256,5 +260,48 @@ describe("duplicateCampaign", () => {
       })
     );
     expect(mockPrisma.automation.create).not.toHaveBeenCalled();
+  });
+
+  it("lands the copy on an account of the same platform when the target has one", async () => {
+    mockPrisma.socialAccount.findUnique.mockResolvedValue({ platform: "FACEBOOK" });
+    mockPrisma.socialAccount.findMany.mockResolvedValue([
+      { id: "ig_1", platform: "INSTAGRAM" },
+      { id: "page_1", platform: "FACEBOOK" },
+    ]);
+
+    await duplicateCampaign({
+      automationId: "automation_123",
+      workspaceId: "workspace_123",
+      targetWorkspaceId: "workspace_target",
+    });
+
+    expect(createArgs().data).toMatchObject({ socialAccountId: "page_1" });
+  });
+
+  it("does not move a campaign to another platform", async () => {
+    mockPrisma.socialAccount.findUnique.mockResolvedValue({ platform: "INSTAGRAM" });
+    mockPrisma.socialAccount.findMany.mockResolvedValue([{ id: "page_1", platform: "FACEBOOK" }]);
+
+    const copy = await duplicateCampaign({
+      automationId: "automation_123",
+      workspaceId: "workspace_123",
+      targetWorkspaceId: "workspace_target",
+    });
+
+    expect(copy).toBeNull();
+    expect(mockPrisma.automation.create).not.toHaveBeenCalled();
+  });
+
+  it("keeps the follow gate when the copy lands on an Instagram account", async () => {
+    mockPrisma.socialAccount.findUnique.mockResolvedValue({ platform: "INSTAGRAM" });
+    mockPrisma.socialAccount.findMany.mockResolvedValue([{ id: "ig_1", platform: "INSTAGRAM" }]);
+
+    await duplicateCampaign({
+      automationId: "automation_123",
+      workspaceId: "workspace_123",
+      targetWorkspaceId: "workspace_target",
+    });
+
+    expect(createArgs().data).toMatchObject({ socialAccountId: "ig_1", requireFollow: true });
   });
 });

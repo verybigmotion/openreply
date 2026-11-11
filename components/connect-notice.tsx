@@ -1,5 +1,6 @@
 "use client";
 
+import { facebookStatusMessage } from "@/lib/facebook-status";
 import type { StaticMessageKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
 import { useSearchParams } from "next/navigation";
@@ -39,10 +40,23 @@ const MESSAGES: Record<string, { tone: Tone; title: StaticMessageKey; detail: St
   },
 };
 
-export function InstagramConnectNotice() {
+const FACEBOOK_WARNINGS = new Set(["already_connected", "partially_connected"]);
+
+export function ConnectNotice() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const status = searchParams.get("instagram");
+  const facebookStatus = searchParams.get("facebook");
+  const facebookMessage = facebookStatusMessage(facebookStatus);
+
+  if (facebookStatus && facebookMessage) {
+    const reason = searchParams.get("reason");
+    return (
+      <Notice tone={FACEBOOK_WARNINGS.has(facebookStatus) ? "warning" : "error"} title={t(facebookMessage)}>
+        {reason && <p className="font-mono text-xs break-words opacity-80">{reason}</p>}
+      </Notice>
+    );
+  }
 
   if (!status) return null;
 

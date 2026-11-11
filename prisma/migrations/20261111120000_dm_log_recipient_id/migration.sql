@@ -1,0 +1,1 @@
+ALTER TABLE "DmLog" ADD COLUMN "recipientId" TEXT;

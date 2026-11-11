@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   if (!duplicate) {
     return NextResponse.json(
-      { success: false, error: "Campaign not found or target workspace has no Instagram account" },
+      { success: false, error: "Campaign not found, or the target workspace has no account on the same platform" },
       { status: 404 }
     );
   }

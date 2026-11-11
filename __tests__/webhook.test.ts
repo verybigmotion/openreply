@@ -161,7 +161,7 @@ describe("parseCommentEvents", () => {
 
   it("should ignore non-instagram objects", () => {
     const payload = {
-      object: "page",
+      object: "user",
       entry: [
         {
           id: "page_123",
@@ -448,7 +448,7 @@ describe("parseMessageEvents", () => {
   it("should ignore non-instagram payloads", () => {
     expect(
       parseMessageEvents({
-        object: "page",
+        object: "user",
         entry: [
           {
             id: "ig_456",

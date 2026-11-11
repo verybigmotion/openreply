@@ -1,3 +1,4 @@
+import { socialAccountLabel } from "@/lib/social-account-label";
 import { prisma } from "@/lib/db/client";
 import type { Locale } from "@/lib/i18n";
 import {
@@ -49,9 +50,11 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
           name: true,
         },
       },
-      instagramAccount: {
+      socialAccount: {
         select: {
           username: true,
+          name: true,
+          platform: true,
         },
       },
       trackedLinks: {
@@ -167,7 +170,7 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
       isActive: automation.isActive,
       createdAt: automation.createdAt,
       updatedAt: automation.updatedAt,
-      instagramUsername: automation.instagramAccount.username,
+      socialAccountLabel: socialAccountLabel(automation.socialAccount),
     },
     metrics: {
       sent: statusSummary.sent,

@@ -1,3 +1,4 @@
+import type { SocialPlatform } from "@/app/generated/prisma/client";
 import { getMetaGraphApiVersion, requireEnv } from "@/lib/env";
 
 function instagramGraphBase() {
@@ -6,7 +7,7 @@ function instagramGraphBase() {
 
 const INSTAGRAM_TOKEN_BASE = "https://graph.instagram.com";
 
-function facebookGraphBase() {
+export function facebookGraphBase() {
   return `https://graph.facebook.com/${getMetaGraphApiVersion()}`;
 }
 
@@ -110,7 +111,7 @@ interface TokenResponse {
   expires_in?: number;
 }
 
-async function handleResponse<T>(response: Response): Promise<T> {
+export async function handleResponse<T>(response: Response): Promise<T> {
   const data = await response.json();
 
   if (!response.ok || (data as GraphApiError).error) {
@@ -134,6 +135,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
       case 4:
       case 17:
       case 613:
+      case 32:
+      case 80001:
         throw new RateLimitError(message, traceId);
       case 10:
       case 100:
@@ -147,28 +150,66 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-export async function sendPrivateReply(
+function graphBase(platform: SocialPlatform) {
+  return platform === "FACEBOOK" ? facebookGraphBase() : instagramGraphBase();
+}
+
+type MessageRecipient = { comment_id: string } | { id: string };
+
+async function postMessage(
   accessToken: string,
-  instagramAccountId: string,
-  commentId: string,
-  message: string
+  accountId: string,
+  recipient: MessageRecipient,
+  message: object,
+  platform: SocialPlatform
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        recipient: { comment_id: commentId },
-        message: { text: message },
-      }),
-    }
-  );
+  const response = await fetch(`${graphBase(platform)}/${accountId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      recipient,
+      ...(platform === "FACEBOOK" ? { messaging_type: "RESPONSE" } : {}),
+      message,
+    }),
+  });
 
   return handleResponse(response);
+}
+
+function buttonTemplate(text: string, buttons: object[]) {
+  return {
+    attachment: {
+      type: "template",
+      payload: {
+        template_type: "button",
+        text: text.slice(0, 640),
+        buttons,
+      },
+    },
+  };
+}
+
+function postbackButton(buttonTitle: string, payload: string) {
+  return [{ type: "postback", title: buttonTitle.slice(0, 20), payload }];
+}
+
+export async function sendPrivateReply(
+  accessToken: string,
+  accountId: string,
+  commentId: string,
+  message: string,
+  platform: SocialPlatform
+): Promise<{ recipient_id: string; message_id: string }> {
+  return postMessage(
+    accessToken,
+    accountId,
+    { comment_id: commentId },
+    { text: message },
+    platform
+  );
 }
 
 /**
@@ -179,40 +220,20 @@ export async function sendPrivateReply(
  */
 export async function sendPrivateReplyWithButton(
   accessToken: string,
-  instagramAccountId: string,
+  accountId: string,
   commentId: string,
   text: string,
   buttonTitle: string,
-  payload: string
+  payload: string,
+  platform: SocialPlatform
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        recipient: { comment_id: commentId },
-        message: {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "button",
-              // Button template text is capped at 640 chars by Meta.
-              text: text.slice(0, 640),
-              buttons: [
-                { type: "postback", title: buttonTitle.slice(0, 20), payload },
-              ],
-            },
-          },
-        },
-      }),
-    }
+  return postMessage(
+    accessToken,
+    accountId,
+    { comment_id: commentId },
+    buttonTemplate(text, postbackButton(buttonTitle, payload)),
+    platform
   );
-
-  return handleResponse(response);
 }
 
 /**
@@ -222,39 +243,20 @@ export async function sendPrivateReplyWithButton(
  */
 export async function sendDirectMessageWithButton(
   accessToken: string,
-  instagramAccountId: string,
+  accountId: string,
   userId: string,
   text: string,
   buttonTitle: string,
-  payload: string
+  payload: string,
+  platform: SocialPlatform
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        recipient: { id: userId },
-        message: {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "button",
-              text: text.slice(0, 640),
-              buttons: [
-                { type: "postback", title: buttonTitle.slice(0, 20), payload },
-              ],
-            },
-          },
-        },
-      }),
-    }
+  return postMessage(
+    accessToken,
+    accountId,
+    { id: userId },
+    buttonTemplate(text, postbackButton(buttonTitle, payload)),
+    platform
   );
-
-  return handleResponse(response);
 }
 
 /**
@@ -308,36 +310,19 @@ function toWebUrlButtons(buttons: LinkButton[]) {
  */
 export async function sendPrivateReplyWithLinkButton(
   accessToken: string,
-  instagramAccountId: string,
+  accountId: string,
   commentId: string,
   text: string,
-  buttons: LinkButton[]
+  buttons: LinkButton[],
+  platform: SocialPlatform
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        recipient: { comment_id: commentId },
-        message: {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "button",
-              text: text.slice(0, 640),
-              buttons: toWebUrlButtons(buttons),
-            },
-          },
-        },
-      }),
-    }
+  return postMessage(
+    accessToken,
+    accountId,
+    { comment_id: commentId },
+    buttonTemplate(text, toWebUrlButtons(buttons)),
+    platform
   );
-
-  return handleResponse(response);
 }
 
 /**
@@ -346,26 +331,18 @@ export async function sendPrivateReplyWithLinkButton(
  */
 export async function sendDirectMessage(
   accessToken: string,
-  instagramAccountId: string,
+  accountId: string,
   userId: string,
-  message: string
+  message: string,
+  platform: SocialPlatform
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        recipient: { id: userId },
-        message: { text: message },
-      }),
-    }
+  return postMessage(
+    accessToken,
+    accountId,
+    { id: userId },
+    { text: message },
+    platform
   );
-
-  return handleResponse(response);
 }
 
 /**
@@ -374,54 +351,36 @@ export async function sendDirectMessage(
  */
 export async function sendDirectMessageWithLinkButton(
   accessToken: string,
-  instagramAccountId: string,
+  accountId: string,
   userId: string,
   text: string,
-  buttons: LinkButton[]
+  buttons: LinkButton[],
+  platform: SocialPlatform
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        recipient: { id: userId },
-        message: {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "button",
-              text: text.slice(0, 640),
-              buttons: toWebUrlButtons(buttons),
-            },
-          },
-        },
-      }),
-    }
+  return postMessage(
+    accessToken,
+    accountId,
+    { id: userId },
+    buttonTemplate(text, toWebUrlButtons(buttons)),
+    platform
   );
-
-  return handleResponse(response);
 }
 
 export async function sendCommentReply(
   accessToken: string,
   commentId: string,
-  message: string
+  message: string,
+  platform: SocialPlatform
 ): Promise<{ id: string }> {
-  const response = await fetch(
-    `${instagramGraphBase()}/${commentId}/replies`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ message }),
-    }
-  );
+  const edge = platform === "FACEBOOK" ? "comments" : "replies";
+  const response = await fetch(`${graphBase(platform)}/${commentId}/${edge}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ message }),
+  });
 
   return handleResponse(response);
 }

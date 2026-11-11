@@ -1,13 +1,16 @@
 "use client";
 
 import { useI18n } from "@/lib/i18n/provider";
+import { socialAccountLabel } from "@/lib/social-account-label";
+import type { SocialPlatform } from "@/lib/social-platform";
 
 
 export interface AccountOption {
   id: string;
   username: string;
-  instagramId: string;
+  externalId: string;
   name?: string | null;
+  platform?: SocialPlatform;
 }
 
 interface AccountSelectProps {
@@ -29,7 +32,7 @@ export default function AccountSelect({
   return (
     <label className="flex flex-col gap-2 text-sm">
       <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        {label ?? t("Instagram account")}
+        {label ?? t("Account")}
       </span>
       <select
         value={value}
@@ -39,7 +42,7 @@ export default function AccountSelect({
         {includeAll && <option value="all">{t("All accounts")}</option>}
         {accounts.map((account) => (
           <option key={account.id} value={account.id}>
-            @{account.username}
+            {socialAccountLabel(account)}
           </option>
         ))}
       </select>

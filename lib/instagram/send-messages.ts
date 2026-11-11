@@ -5,7 +5,7 @@ import {
   ZernioApiError,
   ZernioDeliveryUnconfirmedError,
 } from "@/lib/zernio/client";
-import type { InstagramContext, ZernioContext } from "./context";
+import type { SocialAccountContext, ZernioContext } from "./context";
 
 type Button =
   | { type: "url"; title: string; url: string }
@@ -75,13 +75,11 @@ function linkButtons(buttons: meta.LinkButton[]): Button[] {
 
 export async function sendPrivateReply({
   context,
-  instagramAccountId,
   commentId,
   message,
   postId,
 }: {
-  context: InstagramContext;
-  instagramAccountId: string;
+  context: SocialAccountContext;
   commentId: string;
   message: string;
   postId?: string;
@@ -89,24 +87,23 @@ export async function sendPrivateReply({
   if (context.provider === "META")
     return meta.sendPrivateReply(
       context.accessToken,
-      instagramAccountId,
+      context.externalId,
       commentId,
-      message
+      message,
+      context.platform
     );
   return sendZernioMessage({ context, commentId, postId, text: message });
 }
 
 export async function sendPrivateReplyWithButton({
   context,
-  instagramAccountId,
   commentId,
   text,
   buttonTitle,
   payload,
   postId,
 }: {
-  context: InstagramContext;
-  instagramAccountId: string;
+  context: SocialAccountContext;
   commentId: string;
   text: string;
   buttonTitle: string;
@@ -116,11 +113,12 @@ export async function sendPrivateReplyWithButton({
   if (context.provider === "META")
     return meta.sendPrivateReplyWithButton(
       context.accessToken,
-      instagramAccountId,
+      context.externalId,
       commentId,
       text,
       buttonTitle,
-      payload
+      payload,
+      context.platform
     );
   return sendZernioMessage({
     context,
@@ -133,14 +131,12 @@ export async function sendPrivateReplyWithButton({
 
 export async function sendDirectMessageWithButton({
   context,
-  instagramAccountId,
   userId,
   text,
   buttonTitle,
   payload,
 }: {
-  context: InstagramContext;
-  instagramAccountId: string;
+  context: SocialAccountContext;
   userId: string;
   text: string;
   buttonTitle: string;
@@ -149,11 +145,12 @@ export async function sendDirectMessageWithButton({
   if (context.provider === "META")
     return meta.sendDirectMessageWithButton(
       context.accessToken,
-      instagramAccountId,
+      context.externalId,
       userId,
       text,
       buttonTitle,
-      payload
+      payload,
+      context.platform
     );
   return sendZernioMessage({
     context,
@@ -165,14 +162,12 @@ export async function sendDirectMessageWithButton({
 
 export async function sendPrivateReplyWithLinkButton({
   context,
-  instagramAccountId,
   commentId,
   text,
   buttons,
   postId,
 }: {
-  context: InstagramContext;
-  instagramAccountId: string;
+  context: SocialAccountContext;
   commentId: string;
   text: string;
   buttons: meta.LinkButton[];
@@ -181,10 +176,11 @@ export async function sendPrivateReplyWithLinkButton({
   if (context.provider === "META")
     return meta.sendPrivateReplyWithLinkButton(
       context.accessToken,
-      instagramAccountId,
+      context.externalId,
       commentId,
       text,
-      buttons
+      buttons,
+      context.platform
     );
   return sendZernioMessage({
     context,
@@ -197,34 +193,31 @@ export async function sendPrivateReplyWithLinkButton({
 
 export async function sendDirectMessage({
   context,
-  instagramAccountId,
   userId,
   message,
 }: {
-  context: InstagramContext;
-  instagramAccountId: string;
+  context: SocialAccountContext;
   userId: string;
   message: string;
 }) {
   if (context.provider === "META")
     return meta.sendDirectMessage(
       context.accessToken,
-      instagramAccountId,
+      context.externalId,
       userId,
-      message
+      message,
+      context.platform
     );
   return sendZernioMessage({ context, recipientId: userId, text: message });
 }
 
 export async function sendDirectMessageWithLinkButton({
   context,
-  instagramAccountId,
   userId,
   text,
   buttons,
 }: {
-  context: InstagramContext;
-  instagramAccountId: string;
+  context: SocialAccountContext;
   userId: string;
   text: string;
   buttons: meta.LinkButton[];
@@ -232,10 +225,11 @@ export async function sendDirectMessageWithLinkButton({
   if (context.provider === "META")
     return meta.sendDirectMessageWithLinkButton(
       context.accessToken,
-      instagramAccountId,
+      context.externalId,
       userId,
       text,
-      buttons
+      buttons,
+      context.platform
     );
   return sendZernioMessage({
     context,
@@ -251,13 +245,13 @@ export async function sendCommentReply({
   message,
   postId,
 }: {
-  context: InstagramContext;
+  context: SocialAccountContext;
   commentId: string;
   message: string;
   postId?: string;
 }) {
   if (context.provider === "META")
-    return meta.sendCommentReply(context.accessToken, commentId, message);
+    return meta.sendCommentReply(context.accessToken, commentId, message, context.platform);
   const result = await zernioRequest<{ data: { commentId: string } }>({
     apiKey: context.apiKey,
     path: `/inbox/comments/${encodeURIComponent(postId ?? commentId)}`,

@@ -36,8 +36,23 @@ const INSTAGRAM_OAUTH_ENV = [
   "NEXTAUTH_SECRET",
 ] as const;
 
+const FACEBOOK_OAUTH_ENV = [
+  "FACEBOOK_APP_ID",
+  "FACEBOOK_APP_SECRET",
+  "ENCRYPTION_KEY",
+  "NEXTAUTH_SECRET",
+] as const;
+
+export function getMissingFacebookOAuthEnv(): string[] {
+  return missingOAuthEnv(FACEBOOK_OAUTH_ENV);
+}
+
 export function getMissingInstagramOAuthEnv(): string[] {
-  return INSTAGRAM_OAUTH_ENV.filter((name) => {
+  return missingOAuthEnv(INSTAGRAM_OAUTH_ENV);
+}
+
+function missingOAuthEnv(names: readonly string[]): string[] {
+  return names.filter((name) => {
     const value = process.env[name];
     if (!value) return true;
     // A malformed key fails later inside encryptToken, after the user has

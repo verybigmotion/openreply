@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { createInstagramContext } from "@/lib/instagram/provider";
+import { createSocialAccountContext } from "@/lib/instagram/provider";
 import { getUserInfo } from "@/lib/instagram/provider";
 import {
   backfillFollowerHistory,
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const accounts = await prisma.instagramAccount.findMany({
+  const accounts = await prisma.socialAccount.findMany({
     where: {
       OR: [
         { provider: "META", accessToken: { not: "" } },
@@ -36,10 +36,11 @@ export async function GET(request: NextRequest) {
       id: true,
       workspaceId: true,
       username: true,
-      instagramId: true,
+      externalId: true,
       accessToken: true,
       provider: true,
       zernioAccountId: true,
+      platform: true,
     },
   });
 
@@ -49,12 +50,12 @@ export async function GET(request: NextRequest) {
 
   for (const account of accounts) {
     try {
-      const token = await createInstagramContext(account);
+      const token = await createSocialAccountContext(account);
       if (token.provider === "ZERNIO") {
         const imported = await backfillFollowerHistory({
-          instagramAccountId: account.id,
+          socialAccountId: account.id,
           accessToken: token,
-          instagramId: account.instagramId,
+          externalId: account.externalId,
           currentFollowers: 0,
         });
         backfilled += imported;
@@ -81,13 +82,13 @@ export async function GET(request: NextRequest) {
 
       // First time we see this account, try to recover the last 30 days.
       const existing = await prisma.followerSnapshot.count({
-        where: { instagramAccountId: account.id },
+        where: { socialAccountId: account.id },
       });
       if (existing <= 1) {
         backfilled += await backfillFollowerHistory({
-          instagramAccountId: account.id,
+          socialAccountId: account.id,
           accessToken: token,
-          instagramId: account.instagramId,
+          externalId: account.externalId,
           currentFollowers: info.followers_count,
         });
       }

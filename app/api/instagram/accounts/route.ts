@@ -19,17 +19,17 @@ export async function GET() {
     );
   }
 
-  const instagramAccounts = await prisma.instagramAccount.findMany({
+  const socialAccounts = await prisma.socialAccount.findMany({
     where: { workspaceId },
     orderBy: { connectedAt: "desc" },
-    select: { id: true, username: true, instagramId: true, name: true },
+    select: { id: true, username: true, externalId: true, name: true, platform: true },
   });
 
   return NextResponse.json({
     success: true,
     data: {
-      instagramAccounts,
-      selectedInstagramAccountId: instagramAccounts[0]?.id ?? null,
+      socialAccounts,
+      selectedAccountId: socialAccounts[0]?.id ?? null,
     },
   });
 }

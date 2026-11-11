@@ -10,7 +10,7 @@ import { zernioLink } from '@/lib/zernio-links';
 type ConnectionData = {
   configured: boolean; profileId?: string | null; webhookReady?: boolean;
   profiles: { id: string; name: string }[];
-  accounts: { id: string; username: string; instagramId: string; connected?: boolean }[];
+  accounts: { id: string; username: string; externalId: string; connected?: boolean }[];
 };
 
 export function ZernioConnection({ canManage }: { canManage: boolean }) {

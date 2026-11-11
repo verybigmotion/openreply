@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
-import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
+import { getWorkspaceSocialAccount } from "@/lib/instagram-accounts";
 import { getAllUserMedia, getUserMedia } from "@/lib/instagram/provider";
-import { createInstagramContext } from "@/lib/instagram/provider";
+import { createSocialAccountContext } from "@/lib/instagram/provider";
 
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();
@@ -13,9 +13,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const account = await getWorkspaceInstagramAccount(
+  const account = await getWorkspaceSocialAccount(
     workspaceId,
-    request.nextUrl.searchParams.get("instagramAccountId")
+    request.nextUrl.searchParams.get("socialAccountId")
   );
 
   if (!account) {
@@ -23,14 +23,14 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error:
-          "Instagram account not connected. Please connect your account first.",
+          "No account connected. Please connect an account first.",
       },
       { status: 400 }
     );
   }
 
   try {
-    const accessToken = await createInstagramContext(account);
+    const accessToken = await createSocialAccountContext(account);
 
     // `all=true` paginates the full library (for the campaign post picker);
     // otherwise return a single recent page.

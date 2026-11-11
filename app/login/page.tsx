@@ -4,6 +4,7 @@ import type { StaticMessageKey } from "@/lib/i18n";
 import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
 import { DemoNotice } from "@/components/demo-notice";
 import { isPublicDemoHost } from "@/lib/env";
+import { facebookStatusMessage } from "@/lib/facebook-status";
 
 const LOGIN_ERRORS: Record<string, StaticMessageKey> = {
   instagram_denied: "Instagram sign-in was cancelled.",
@@ -14,6 +15,11 @@ const LOGIN_ERRORS: Record<string, StaticMessageKey> = {
   instagram_misconfigured: "Instagram sign-in is not configured on this server.",
 };
 
+function loginErrorMessage(error: string | undefined) {
+  if (error?.startsWith("facebook_")) return facebookStatusMessage(error.slice("facebook_".length));
+  return LOGIN_ERRORS[error ?? ""];
+}
+
 const GITHUB_URL = "https://github.com/diwenne/openreply";
 const SETUP_DOCS_URL = `${GITHUB_URL}/blob/main/docs/setup.md`;
 
@@ -21,7 +27,7 @@ export async function generateMetadata() {
   const { t } = await getI18n();
   return {
     title: t("Login - OpenReply"),
-    description: t("Sign in to manage Instagram comment-to-DM campaigns."),
+    description: t("Sign in to manage Instagram and Facebook comment-to-DM campaigns."),
   };
 }
 
@@ -71,7 +77,7 @@ export default async function LoginPage({
     ? `/campaigns/new?template=${selectedTemplate.slug}`
     : null;
   const callbackUrl = params.callbackUrl ?? templateCallbackUrl ?? "/dashboard";
-  const loginError = LOGIN_ERRORS[params.error ?? ""];
+  const loginError = loginErrorMessage(params.error);
 
   async function sendMagicLink(formData: FormData) {
     "use server";
@@ -91,7 +97,7 @@ export default async function LoginPage({
           <p className="text-muted text-sm leading-relaxed mt-2">
             {selectedTemplate
               ? t("Sign in to use the {name} template.", { name: selectedTemplate.title })
-              : t("Sign in by email, then connect your Instagram professional account.")}
+              : t("Sign in by email, then connect your Instagram professional account or Facebook Page.")}
           </p>
         </div>
 
@@ -128,6 +134,12 @@ export default async function LoginPage({
               className="w-full inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-indigo-500/25 transition-all hover:shadow-indigo-500/30"
             >
               {t("Continue with Instagram")}
+            </a>
+            <a
+              href="/api/facebook/login"
+              className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-indigo-500/25 transition-all hover:shadow-indigo-500/30"
+            >
+              {t("Continue with Facebook")}
             </a>
             <div className="my-5 flex items-center gap-3 text-xs text-muted">
               <span className="h-px flex-1 bg-border" />

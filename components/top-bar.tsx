@@ -27,14 +27,14 @@ const pageTitles: Record<string, StaticMessageKey> = {
 
 interface TopBarProps {
   onMenuClick: () => void;
-  instagramUsername: string | null;
-  instagramAccountCount: number;
+  primaryAccountLabel: string | null;
+  accountCount: number;
 }
 
 export default function TopBar({
   onMenuClick,
-  instagramUsername,
-  instagramAccountCount,
+  primaryAccountLabel,
+  accountCount,
 }: TopBarProps) {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -65,20 +65,20 @@ export default function TopBar({
         <h1 className="truncate text-base font-semibold sm:text-lg">{t(title)}</h1>
       </div>
 
-      {instagramAccountCount > 0 ? (
+      {accountCount > 0 ? (
         <p className="shrink-0 truncate text-sm text-muted">
-          {instagramAccountCount > 1
-            ? t("{count} accounts", { count: instagramAccountCount })
-            : `@${instagramUsername}`}
+          {accountCount > 1
+            ? t("{count} accounts", { count: accountCount })
+            : primaryAccountLabel}
         </p>
       ) : (
         <a
-          href="/api/instagram/connect"
+          href="/settings"
           className="shrink-0 whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded bg-accent text-white hover:bg-accent-hover"
         >
           {/* Full label needs more room than a 360px header has to spare. */}
           <span className="sm:hidden">{t("Connect")}</span>
-          <span className="hidden sm:inline">{t("Connect Instagram")}</span>
+          <span className="hidden sm:inline">{t("Connect Instagram or Facebook")}</span>
         </a>
       )}
     </header>

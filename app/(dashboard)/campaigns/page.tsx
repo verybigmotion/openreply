@@ -1,5 +1,6 @@
 "use client";
 
+import { socialAccountLabel } from "@/lib/social-account-label";
 /**
  * Campaigns List Page
  *
@@ -36,10 +37,10 @@ interface Campaign {
   followPromptButtonLabel: string | null;
   isActive: boolean;
   wholeWordMatch: boolean;
-  instagramAccountId: string;
-  instagramAccount: {
+  socialAccountId: string;
+  socialAccount: {
     username: string;
-    instagramId: string;
+    externalId: string;
   };
   reportShareSlug: string | null;
   reportShareEnabled: boolean;
@@ -93,7 +94,7 @@ export default function CampaignsPage() {
     try {
       const params = new URLSearchParams();
       if (selectedAccountId !== "all") {
-        params.set("instagramAccountId", selectedAccountId);
+        params.set("socialAccountId", selectedAccountId);
       }
       const res = await fetch(
         `/api/automations${params.size ? `?${params}` : ""}`,
@@ -112,7 +113,7 @@ export default function CampaignsPage() {
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
       .then((payload) => {
-        if (payload.success) setAccounts(payload.data.instagramAccounts ?? []);
+        if (payload.success) setAccounts(payload.data.socialAccounts ?? []);
       })
       .catch(console.error);
   }, []);
@@ -131,7 +132,7 @@ export default function CampaignsPage() {
     if (automations.length === 0) return;
     let cancelled = false;
     const accountIds = Array.from(
-      new Set(automations.map((a) => a.instagramAccountId))
+      new Set(automations.map((a) => a.socialAccountId))
     ).sort();
     const cacheKey = `ig-media:${accountIds.join(",")}`;
 
@@ -149,7 +150,7 @@ export default function CampaignsPage() {
 
     Promise.all(
       accountIds.map((accountId) =>
-        fetch(`/api/instagram/posts?instagramAccountId=${accountId}&limit=50`)
+        fetch(`/api/instagram/posts?socialAccountId=${accountId}&limit=50`)
           .then((res) => res.json())
           .then((payload) =>
             payload.success
@@ -428,7 +429,7 @@ export default function CampaignsPage() {
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <h3 className="text-sm font-semibold truncate">{auto.name}</h3>
                   <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                    @{auto.instagramAccount.username}
+                    {socialAccountLabel(auto.socialAccount)}
                   </span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -624,7 +625,7 @@ export default function CampaignsPage() {
                   rel="noreferrer"
                   className="text-zinc-300 hover:text-white"
                 >
-                  {t("Open on Instagram")}
+                  {t("Open post")}
                 </a>
               )}
               <button
