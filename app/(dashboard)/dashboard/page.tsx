@@ -9,6 +9,7 @@
 import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useState } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
+import { contactLabel, socialAccountLabel } from "@/lib/social-account-label";
 import StatCard from "@/components/stat-card";
 import StatusBadge from "@/components/status-badge";
 
@@ -26,8 +27,8 @@ interface DashboardStats {
   clicksThisMonth: number;
   totalClicks: number;
   ctrThisMonth: number;
-  instagramAccounts: AccountOption[];
-  selectedInstagramAccountId: string | null;
+  socialAccounts: AccountOption[];
+  selectedAccountId: string | null;
   topKeywords: { keyword: string; count: number }[];
   dailyDMs: { date: string; count: number }[];
   recentLogs: Array<{
@@ -37,7 +38,7 @@ interface DashboardStats {
     status: string;
     createdAt: string;
     automation: { name: string };
-    instagramAccount?: { username: string };
+    socialAccount?: Parameters<typeof socialAccountLabel>[0];
   }>;
 }
 
@@ -50,7 +51,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (selectedAccountId !== "all") {
-      params.set("instagramAccountId", selectedAccountId);
+      params.set("socialAccountId", selectedAccountId);
     }
 
     fetch(`/api/dashboard/stats${params.size ? `?${params}` : ""}`)
@@ -85,7 +86,7 @@ export default function DashboardPage() {
 
   const maxDM = Math.max(...(stats?.dailyDMs.map((d) => d.count) ?? [1]), 1);
 
-  const connectedCount = stats?.instagramAccounts.length ?? 0;
+  const connectedCount = stats?.socialAccounts.length ?? 0;
 
   return (
     <div className="space-y-8">
@@ -105,9 +106,9 @@ export default function DashboardPage() {
             </a>
           </p>
         </div>
-        {stats && stats.instagramAccounts.length > 1 && (
+        {stats && stats.socialAccounts.length > 1 && (
           <AccountSelect
-            accounts={stats.instagramAccounts}
+            accounts={stats.socialAccounts}
             value={selectedAccountId}
             onChange={handleAccountChange}
           />
@@ -181,11 +182,11 @@ export default function DashboardPage() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground truncate">
-                    @{log.commenterName ?? "unknown"}
+                    {contactLabel(log.commenterName, log.socialAccount?.platform)}
                   </p>
                   <p className="text-xs text-muted truncate">
-                    {log.instagramAccount
-                      ? `@${log.instagramAccount.username} · `
+                    {log.socialAccount
+                      ? `${socialAccountLabel(log.socialAccount)} · `
                       : ""}
                     {log.commentText}
                   </p>

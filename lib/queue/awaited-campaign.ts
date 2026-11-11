@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/db/client";
+import { sentTo } from "@/lib/queue/dm-recipient";
 
 export async function findAwaitedCampaignId(
-  instagramId: string,
+  externalId: string,
   userId: string
 ): Promise<string | null> {
   const latestDelivered = await prisma.dmLog.findFirst({
-    where: { commenterId: userId, status: "SENT", instagramAccount: { instagramId } },
+    where: { ...sentTo(userId), status: "SENT", socialAccount: { externalId } },
     orderBy: { dmSentAt: "desc" },
     select: {
       automationId: true,

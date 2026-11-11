@@ -1,21 +1,21 @@
 import { prisma } from '@/lib/db/client';
 import { getDMQueue, MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from '@/lib/queue/client';
-import { parseCommentEvents, parseMessageEvents, parsePostbackEvents, parseReadEvents } from '@/lib/meta/webhook';
-import { Prisma, type InstagramProvider } from '@/app/generated/prisma/client';
+import { isSocialAccountObject, parseCommentEvents, parseMessageEvents, parsePostbackEvents, parseReadEvents } from '@/lib/meta/webhook';
+import { Prisma, type SocialProvider } from '@/app/generated/prisma/client';
 import { findAwaitedCampaignId } from '@/lib/queue/awaited-campaign';
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 type InstagramPayload = Parameters<typeof parseCommentEvents>[0];
 
 export async function processInstagramWebhook({ payload: incoming, provider, workspaceId }: {
-  payload: InstagramPayload; provider: InstagramProvider; workspaceId?: string;
+  payload: InstagramPayload; provider: SocialProvider; workspaceId?: string;
 }) {
-  if (incoming.object !== 'instagram' || !Array.isArray(incoming.entry)) return;
-  const accounts = await prisma.instagramAccount.findMany({
-    where: { instagramId: { in: incoming.entry.map(e => e.id) }, provider, ...(workspaceId ? { workspaceId } : {}) },
-    select: { id: true, instagramId: true, workspaceId: true },
+  if (!isSocialAccountObject(incoming.object) || !Array.isArray(incoming.entry)) return;
+  const accounts = await prisma.socialAccount.findMany({
+    where: { externalId: { in: incoming.entry.map(e => e.id) }, provider, ...(workspaceId ? { workspaceId } : {}) },
+    select: { id: true, externalId: true, workspaceId: true },
   });
-  const accountMap = new Map(accounts.map(a => [a.instagramId, a]));
+  const accountMap = new Map(accounts.map(a => [a.externalId, a]));
   const allowed = new Set(accountMap.keys());
   const payload = { ...incoming, entry: incoming.entry.filter(e => allowed.has(e.id)) };
   if (!payload.entry.length) return;

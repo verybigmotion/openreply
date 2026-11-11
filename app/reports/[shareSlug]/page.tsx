@@ -56,7 +56,7 @@ export async function generateMetadata({
 
   return {
     title: t("{name} Campaign Report", { name: report.campaign.name }),
-    description: t("Read-only Instagram comment-to-DM campaign report for {name}.", { name: report.campaign.name }),
+    description: t("Read-only comment-to-DM campaign report for {name}.", { name: report.campaign.name }),
     robots: { index: false, follow: false },
   };
 }
@@ -88,7 +88,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
                 {report.campaign.name}
               </h1>
               <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-zinc-400">
-                <span>@{report.campaign.instagramUsername}</span>
+                <span>{report.campaign.socialAccountLabel}</span>
                 {report.campaign.goal && (
                   <>
                     <span>·</span>
@@ -292,7 +292,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
                   rel="noreferrer"
                   className="mt-3 inline-flex text-sm font-semibold text-cyan-200 transition hover:text-cyan-100"
                 >
-                  {t("View Instagram post")}
+                  {t("View post")}
                 </a>
               ) : (
                 <p className="mt-3 text-sm text-zinc-400">{t("Not attached")}</p>
@@ -303,7 +303,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
 
         {report.branded && (
           <footer className="mt-8 border-t border-white/10 pt-6 text-center text-xs text-zinc-500">
-            {t("Built with OpenReply, the Instagram comment-to-DM campaign OS.")}
+            {t("Built with OpenReply, the comment-to-DM campaign OS.")}
           </footer>
         )}
       </section>

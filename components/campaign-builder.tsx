@@ -16,6 +16,7 @@ import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
+import { socialAccountDisplayName, socialAccountLabel } from "@/lib/social-account-label";
 import PostPicker from "@/components/post-picker";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
 import { readCache, writeCache } from "@/lib/client-cache";
@@ -24,6 +25,7 @@ import {
   IMPORT_ACCOUNT_KEY,
   type ImportRow,
 } from "@/lib/import-queue";
+import { supportsFollowGate } from "@/lib/social-platform";
 
 type TriggerScope = "specific" | "any" | "next";
 type MatchMode = "specific" | "any";
@@ -53,7 +55,7 @@ interface LoadedCampaign {
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
   isActive: boolean;
-  instagramAccountId: string;
+  socialAccountId: string;
   trackedLinks?: { destinationUrl: string; label?: string | null }[];
 }
 
@@ -210,7 +212,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (cached.data !== null) setAvatarUrl(cached.data);
 
-    const params = new URLSearchParams({ instagramAccountId: selectedAccountId });
+    const params = new URLSearchParams({ socialAccountId: selectedAccountId });
     fetch(`/api/instagram/profile?${params}`)
       .then((r) => r.json())
       .then((d) => {
@@ -233,10 +235,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       .then((r) => r.json())
       .then((payload) => {
         if (!payload.success) return;
-        const next: AccountOption[] = payload.data.instagramAccounts ?? [];
+        const next: AccountOption[] = payload.data.socialAccounts ?? [];
         setAccounts(next);
         setSelectedAccountId(
-          (prev) => prev || payload.data.selectedInstagramAccountId || next[0]?.id || ""
+          (prev) => prev || payload.data.selectedAccountId || next[0]?.id || ""
         );
       })
       .catch(() => setAccounts([]));
@@ -252,7 +254,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         const c = (payload.data as LoadedCampaign[]).find((x) => x.id === campaignId);
         if (!c) return setNotFound(true);
         setName(c.name);
-        setSelectedAccountId(c.instagramAccountId);
+        setSelectedAccountId(c.socialAccountId);
         setTriggerScope(
           c.matchAnyPost ? "any" : c.pendingNextReel ? "next" : "specific"
         );
@@ -308,7 +310,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         const map: Record<string, string> = {};
         for (const a of payload.data as LoadedCampaign[]) {
           if (!a.postId) continue;
-          if (a.instagramAccountId !== selectedAccountId) continue;
+          if (a.socialAccountId !== selectedAccountId) continue;
           if (mode === "edit" && a.id === campaignId) continue;
           map[a.postId] = a.name;
         }
@@ -366,8 +368,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   }, [mode]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const username =
-    accounts.find((a) => a.id === selectedAccountId)?.username ?? "yourbrand";
+  const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
+  const username = selectedAccount ? socialAccountDisplayName(selectedAccount) : "yourbrand";
+  const followGateAvailable = supportsFollowGate(selectedAccount?.platform);
 
   function handlePostSelect(
     id: string,
@@ -388,7 +391,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   async function handleSubmit(activeValue: boolean) {
     setError(null);
 
-    if (!selectedAccountId) return setError(t("Connect an Instagram account first."));
+    if (!selectedAccountId) return setError(t("Connect an Instagram account or a Facebook Page first."));
     if (triggerScope === "specific" && !postId)
       return setError(t("Pick a post or reel to trigger the campaign."));
     if (matchMode === "specific" && keywords.length === 0)
@@ -400,8 +403,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     setSaving(true);
 
     const payload = {
-      name: name.trim() || `Campaign for @${username}`,
-      instagramAccountId: selectedAccountId,
+      name: name.trim() || `Campaign for ${selectedAccount ? socialAccountLabel(selectedAccount) : `@${username}`}`,
+      socialAccountId: selectedAccountId,
       postId: triggerScope === "specific" ? postId : null,
       postUrl: triggerScope === "specific" ? postUrl : null,
       matchAnyPost: triggerScope === "any",
@@ -650,7 +653,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
             maxLength={100}
           />
-          {accounts.length > 1 && (
+          {mode === "new" && accounts.length > 1 && (
             <div className="pt-2">
               <AccountSelect
                 accounts={accounts}
@@ -662,7 +665,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   setPostThumb(null);
                 }}
                 includeAll={false}
-                label={t("Instagram account")}
+                label={t("Account")}
               />
             </div>
           )}
@@ -679,7 +682,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             <div className="rounded-lg border border-border p-2">
               <PostPicker
                 selectedPostId={postId}
-                instagramAccountId={selectedAccountId}
+                socialAccountId={selectedAccountId}
                 usedPostIds={usedPosts}
                 onSelect={handlePostSelect}
               />
@@ -827,39 +830,43 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               </div>
             )}
           </div>
-          <div className="mt-3 rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">
-                {t("a follow requirement first")}
-              </span>
-              <Toggle
-                on={requireFollow}
-                onToggle={() => setRequireFollow(!requireFollow)}
-              />
-            </div>
-            {requireFollow && (
-              <div className="mt-3 space-y-2">
-                <textarea
-                  value={followPromptMessage}
-                  onChange={(e) => setFollowPromptMessage(e.target.value)}
-                  placeholder={t("quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over")}
-                  rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
-                  maxLength={1000}
+          {followGateAvailable ? (
+            <div className="mt-3 rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-foreground">
+                  {t("a follow requirement first")}
+                </span>
+                <Toggle
+                  on={requireFollow}
+                  onToggle={() => setRequireFollow(!requireFollow)}
                 />
-                <input
-                  value={followPromptButtonLabel}
-                  onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
-                  placeholder={t("i'm following")}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                  maxLength={20}
-                />
-                <p className="text-xs text-muted">
-                  {t("We send the link only after they tap the button and Instagram confirms the follow. If it can't be verified, we send it anyway.")}
-                </p>
               </div>
-            )}
-          </div>
+              {requireFollow && (
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    value={followPromptMessage}
+                    onChange={(e) => setFollowPromptMessage(e.target.value)}
+                    placeholder={t("quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over")}
+                    rows={3}
+                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+                    maxLength={1000}
+                  />
+                  <input
+                    value={followPromptButtonLabel}
+                    onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
+                    placeholder={t("i'm following")}
+                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                    maxLength={20}
+                  />
+                  <p className="text-xs text-muted">
+                    {t("We send the link only after they tap the button and Instagram confirms the follow. If it can't be verified, we send it anyway.")}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted">{t("Follow gate is not available for Facebook Pages.")}</p>
+          )}
         </Section>
 
         <Section title={t("And then, they will get")}>
@@ -970,7 +977,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   {followUpDelayMinutes > 0
                     ? t("Sent {minutes} min after they tap through.", { minutes: followUpDelayMinutes })
                     : t("Sent right after they tap through.")}
-                  {" {username}"} {t("personalizes it. Max 24 hours, to stay inside Instagram's messaging window.")}
+                  {" {username}"} {t("personalizes it. Max 24 hours, to stay inside the messaging window.")}
                 </p>
               </div>
             )}
@@ -1004,7 +1011,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               secondLinkOpen && Boolean(secondaryDestinationUrl.trim())
             }
             secondLinkButtonLabel={secondaryButtonLabel || "Open link"}
-            requireFollow={requireFollow}
+            requireFollow={requireFollow && followGateAvailable}
             followPromptMessage={followPromptMessage}
             followPromptButtonLabel={followPromptButtonLabel || "i'm following"}
             followUpEnabled={followUpEnabled}

@@ -1,3 +1,4 @@
+import { socialAccountLabel } from "@/lib/social-account-label";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
@@ -11,7 +12,11 @@ function formatDate(value: Date | null | undefined) {
   return value ? value.toISOString().replace("T", " ").slice(0, 16) : "never";
 }
 
-function tokenState(expiresAt: Date | null, now: number) {
+function tokenState(
+  { tokenExpiresAt: expiresAt, tokenRevokedAt }: { tokenExpiresAt: Date | null; tokenRevokedAt: Date | null },
+  now: number
+) {
+  if (tokenRevokedAt) return { label: "revoked", className: "text-error" };
   if (!expiresAt) return { label: "no expiry", className: "text-muted" };
   const remainingMs = expiresAt.getTime() - now;
   if (remainingMs < 0) return { label: "expired", className: "text-error" };
@@ -27,7 +32,7 @@ async function loadOverview() {
       orderBy: { name: "asc" },
       include: {
         owner: { select: { email: true } },
-        instagramAccounts: { select: { id: true, username: true, provider: true, tokenExpiresAt: true, webhookSubscribed: true } },
+        socialAccounts: { select: { id: true, username: true, name: true, platform: true, provider: true, tokenExpiresAt: true, tokenRevokedAt: true, webhookSubscribed: true } },
       },
     }),
     prisma.webhookEvent.groupBy({ by: ["workspaceId"], _max: { createdAt: true } }),
@@ -68,7 +73,7 @@ export default async function OperatorPage() {
             <tr>
               <th className="py-2 pr-4 font-medium">Workspace</th>
               <th className="py-2 pr-4 font-medium">Owner</th>
-              <th className="py-2 pr-4 font-medium">Instagram</th>
+              <th className="py-2 pr-4 font-medium">Accounts</th>
               <th className="py-2 pr-4 font-medium">Token</th>
               <th className="py-2 pr-4 font-medium">Last webhook</th>
               <th className="py-2 pr-4 font-medium">Sent 24h</th>
@@ -86,10 +91,10 @@ export default async function OperatorPage() {
                   <td className="py-3 pr-4 text-foreground">{workspace.name}</td>
                   <td className="py-3 pr-4 text-muted">{workspace.owner.email ?? "—"}</td>
                   <td className="py-3 pr-4">
-                    {workspace.instagramAccounts.length === 0 && <span className="text-warning">not connected</span>}
-                    {workspace.instagramAccounts.map((account) => (
+                    {workspace.socialAccounts.length === 0 && <span className="text-warning">not connected</span>}
+                    {workspace.socialAccounts.map((account) => (
                       <div key={account.id} className="text-foreground">
-                        @{account.username}
+                        {socialAccountLabel(account)}
                         {!account.webhookSubscribed && account.provider === "META" && (
                           <span className="ml-2 text-warning">no webhook</span>
                         )}
@@ -97,8 +102,8 @@ export default async function OperatorPage() {
                     ))}
                   </td>
                   <td className="py-3 pr-4">
-                    {workspace.instagramAccounts.map((account) => {
-                      const state = tokenState(account.tokenExpiresAt, now);
+                    {workspace.socialAccounts.map((account) => {
+                      const state = tokenState(account, now);
                       return <div key={account.id} className={state.className}>{state.label}</div>;
                     })}
                   </td>

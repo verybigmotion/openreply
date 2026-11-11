@@ -59,7 +59,12 @@ interface WebhookEntry {
       from?: {
         id?: string;
         username?: string;
+        name?: string;
       };
+      item?: string;
+      verb?: string;
+      post_id?: string;
+      message?: string;
       media?: {
         id?: string;
         // Present when media_product_type is "AD": the ad copy gets its own
@@ -112,28 +117,50 @@ interface WebhookPayload {
   entry: WebhookEntry[];
 }
 
+export function isSocialAccountObject(object: string): boolean {
+  return object === "instagram" || object === "page";
+}
+
+function readComment(change: NonNullable<WebhookEntry["changes"]>[number]) {
+  const value = change.value;
+  if (change.field === "feed") {
+    if (value?.item !== "comment" || value.verb !== "add") return null;
+    return {
+      commentId: value.comment_id,
+      mediaId: value.post_id,
+      text: value.message,
+      commenterId: value.from?.id,
+      commenterName: value.from?.name,
+      originalMediaId: undefined,
+    };
+  }
+  if (change.field !== "comments") return null;
+  const mediaId = value?.media?.id ?? value?.media_id;
+  return {
+    commentId: value?.id ?? value?.comment_id,
+    mediaId,
+    text: value?.text,
+    commenterId: value?.from?.id,
+    commenterName: value?.from?.username,
+    originalMediaId:
+      value?.media?.original_media_id === mediaId
+        ? undefined
+        : value?.media?.original_media_id,
+  };
+}
+
 export function parseCommentEvents(payload: WebhookPayload): WebhookCommentEvent[] {
   const events: WebhookCommentEvent[] = [];
 
-  if (payload.object !== "instagram") {
+  if (!isSocialAccountObject(payload.object)) {
     return events;
   }
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
-      if (change.field !== "comments") continue;
-
-      const value = change.value;
-      const commentId = value?.id ?? value?.comment_id;
-      const mediaId = value?.media?.id ?? value?.media_id;
-      // A comment on a boosted post arrives with the ad's media id, while the
-      // campaign is set up against the organic post. Keep both so the worker
-      // can match either one.
-      const originalMediaId =
-        value?.media?.original_media_id === mediaId
-          ? undefined
-          : value?.media?.original_media_id;
-      const commenterId = value?.from?.id;
+      const comment = readComment(change);
+      if (!comment) continue;
+      const { commentId, mediaId, commenterId, originalMediaId } = comment;
 
       if (!entry.id || !commentId || !mediaId || !commenterId) {
         continue;
@@ -149,9 +176,9 @@ export function parseCommentEvents(payload: WebhookPayload): WebhookCommentEvent
       events.push({
         instagramAccountId: entry.id,
         commentId,
-        commentText: value.text ?? "",
+        commentText: comment.text ?? "",
         commenterId,
-        commenterName: value.from?.username,
+        commenterName: comment.commenterName,
         mediaId,
         originalMediaId,
       });
@@ -170,7 +197,7 @@ export function parsePostbackEvents(
 ): WebhookPostbackEvent[] {
   const events: WebhookPostbackEvent[] = [];
 
-  if (payload.object !== "instagram") return events;
+  if (!isSocialAccountObject(payload.object)) return events;
 
   for (const entry of payload.entry ?? []) {
     for (const messaging of entry.messaging ?? []) {
@@ -209,7 +236,7 @@ export function parseMessageEvents(
 ): WebhookMessageEvent[] {
   const events: WebhookMessageEvent[] = [];
 
-  if (payload.object !== "instagram") return events;
+  if (!isSocialAccountObject(payload.object)) return events;
 
   for (const entry of payload.entry ?? []) {
     for (const messaging of entry.messaging ?? []) {
@@ -248,7 +275,7 @@ export function parseMessageEvents(
 export function parseReadEvents(payload: WebhookPayload): WebhookReadEvent[] {
   const events: WebhookReadEvent[] = [];
 
-  if (payload.object !== "instagram") return events;
+  if (!isSocialAccountObject(payload.object)) return events;
 
   for (const entry of payload.entry ?? []) {
     for (const messaging of entry.messaging ?? []) {

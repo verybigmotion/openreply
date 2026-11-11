@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
-import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
+import { getWorkspaceSocialAccount } from "@/lib/instagram-accounts";
 import { getUserInfo } from "@/lib/instagram/provider";
-import { createInstagramContext } from "@/lib/instagram/provider";
+import { createSocialAccountContext } from "@/lib/instagram/provider";
 
 export const dynamic = "force-dynamic";
 
@@ -16,19 +16,19 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const account = await getWorkspaceInstagramAccount(
+  const account = await getWorkspaceSocialAccount(
     workspaceId,
-    request.nextUrl.searchParams.get("instagramAccountId")
+    request.nextUrl.searchParams.get("socialAccountId")
   );
   if (!account) {
     return NextResponse.json(
-      { success: false, error: "Instagram account not connected" },
+      { success: false, error: "No account connected" },
       { status: 400 }
     );
   }
 
   try {
-    const token = await createInstagramContext(account);
+    const token = await createSocialAccountContext(account);
     const info = await getUserInfo({ context: token });
     return NextResponse.json(
       {

@@ -17,16 +17,16 @@ export const POST = withZernioManagement(async ({ workspaceId }, request) => {
   await withConnectionLock(workspaceId, async tx => {
     const current = await tx.zernioConnection.findUnique({ where: { workspaceId } });
     if (!current || current.profileId !== connection.profileId || current.webhookId !== connection.webhookId || decryptToken(current.apiKey) !== connection.apiKey) throw new ConnectionError('Connection settings changed. Refresh and try again.');
-    const existing = await tx.instagramAccount.findUnique({ where: { instagramId: remote.instagramId } });
+    const existing = await tx.socialAccount.findUnique({ where: { externalId: remote.externalId } });
     if (existing && (existing.workspaceId !== workspaceId || existing.provider !== 'ZERNIO')) throw new ConnectionError('This Instagram account is already connected. Existing connections are not migrated automatically.', 409);
     const data = { username: remote.username, name: remote.name, zernioAccountId: remote.id, webhookSubscribed: true };
     if (existing) {
-      const updated = await tx.instagramAccount.updateMany({
+      const updated = await tx.socialAccount.updateMany({
         where: { id: existing.id, workspaceId, provider: 'ZERNIO' }, data,
       });
       if (!updated.count) throw new ConnectionError('This account connection changed. Refresh and try again.', 409);
     } else {
-      await tx.instagramAccount.create({ data: { ...data, workspaceId, instagramId: remote.instagramId, provider: 'ZERNIO', accessToken: '' } });
+      await tx.socialAccount.create({ data: { ...data, workspaceId, externalId: remote.externalId, provider: 'ZERNIO', accessToken: '' } });
     }
   });
   return NextResponse.json({ success: true });

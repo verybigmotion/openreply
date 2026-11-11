@@ -9,8 +9,8 @@ import type { OperatorWorkspaceOption } from "@/components/operator-workspace-sw
 interface DashboardShellProps {
   children: React.ReactNode;
   workspaceName: string;
-  instagramUsername: string | null;
-  instagramAccountCount: number;
+  primaryAccountLabel: string | null;
+  accountCount: number;
   operatorWorkspaces?: OperatorWorkspaceOption[] | null;
   currentWorkspaceId?: string;
 }
@@ -18,8 +18,8 @@ interface DashboardShellProps {
 export default function DashboardShell({
   children,
   workspaceName,
-  instagramUsername,
-  instagramAccountCount,
+  primaryAccountLabel,
+  accountCount,
   operatorWorkspaces,
   currentWorkspaceId,
 }: DashboardShellProps) {
@@ -43,8 +43,8 @@ export default function DashboardShell({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar
           onMenuClick={() => setSidebarOpen(true)}
-          instagramUsername={instagramUsername}
-          instagramAccountCount={instagramAccountCount}
+          primaryAccountLabel={primaryAccountLabel}
+          accountCount={accountCount}
         />
 
         {/* overflow-x-hidden: enabling vertical scrolling makes the browser

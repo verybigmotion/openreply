@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId, getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
+import { DIRECT_MESSAGE_LOG_PREFIX, REVEAL_LOG_PREFIX } from "@/lib/queue/dm-recipient";
 import {
   calculateCtr,
   normalizeTopKeywords,
   summarizeDmStatuses,
 } from "@/lib/tracking/analytics";
+
+const FACEBOOK_COMMENT_WITHOUT_MESSENGER_ID = {
+  socialAccount: { platform: "FACEBOOK" as const },
+  recipientId: null,
+  NOT: [
+    { commentId: { startsWith: REVEAL_LOG_PREFIX } },
+    { commentId: { startsWith: DIRECT_MESSAGE_LOG_PREFIX } },
+  ],
+};
 
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();
@@ -23,20 +33,20 @@ export async function GET(request: NextRequest) {
   const weekStart = new Date(todayStart);
   weekStart.setDate(weekStart.getDate() - 7);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const requestedInstagramAccountId =
-    request.nextUrl.searchParams.get("instagramAccountId");
+  const requestedAccountId =
+    request.nextUrl.searchParams.get("socialAccountId");
   const selectedAccountId =
-    requestedInstagramAccountId && requestedInstagramAccountId !== "all"
-      ? requestedInstagramAccountId
+    requestedAccountId && requestedAccountId !== "all"
+      ? requestedAccountId
       : null;
   const accountFilter = selectedAccountId
-    ? { instagramAccountId: selectedAccountId }
+    ? { socialAccountId: selectedAccountId }
     : {};
 
   const [
     workspace,
-    instagramAccount,
-    instagramAccounts,
+    socialAccount,
+    socialAccounts,
     totalAutomations,
     activeAutomations,
     dmsSentToday,
@@ -58,28 +68,31 @@ export async function GET(request: NextRequest) {
         dmsSentThisPeriod: true,
       },
     }),
-    prisma.instagramAccount.findFirst({
+    prisma.socialAccount.findFirst({
       where: { workspaceId },
       orderBy: { connectedAt: "desc" },
       select: {
         id: true,
         username: true,
-        instagramId: true,
+        externalId: true,
+        platform: true,
         provider: true,
         tokenExpiresAt: true,
         webhookSubscribed: true,
       },
     }),
-    prisma.instagramAccount.findMany({
+    prisma.socialAccount.findMany({
       where: { workspaceId },
       orderBy: { connectedAt: "desc" },
       select: {
         id: true,
         username: true,
-        instagramId: true,
+        externalId: true,
         name: true,
+        platform: true,
         provider: true,
         tokenExpiresAt: true,
+        tokenRevokedAt: true,
         webhookSubscribed: true,
       },
     }),
@@ -134,7 +147,7 @@ export async function GET(request: NextRequest) {
       take: 10,
       include: {
         automation: { select: { name: true } },
-        instagramAccount: { select: { username: true } },
+        socialAccount: { select: { username: true, name: true, platform: true } },
       },
     }),
     userId
@@ -145,9 +158,9 @@ export async function GET(request: NextRequest) {
       : Promise.resolve(null),
     // Distinct people who have interacted, counted as "contacts".
     prisma.dmLog.findMany({
-      where: { workspaceId, ...accountFilter },
-      distinct: ["commenterId"],
-      select: { commenterId: true },
+      where: { workspaceId, ...accountFilter, NOT: FACEBOOK_COMMENT_WITHOUT_MESSENGER_ID },
+      distinct: ["commenterId", "recipientId"],
+      select: { commenterId: true, recipientId: true },
     }),
   ]);
 
@@ -195,11 +208,11 @@ export async function GET(request: NextRequest) {
     success: true,
     data: {
       userName: firstName,
-      contactsCount: contactRows.length,
+      contactsCount: new Set(contactRows.map((row) => row.recipientId ?? row.commenterId)).size,
       workspace,
-      instagramAccount,
-      instagramAccounts,
-      selectedInstagramAccountId: selectedAccountId,
+      socialAccount,
+      socialAccounts,
+      selectedAccountId: selectedAccountId,
       totalAutomations,
       activeAutomations,
       dmsSentToday,

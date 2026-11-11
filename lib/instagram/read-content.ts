@@ -1,6 +1,7 @@
 import * as meta from "@/lib/meta/client";
 import { zernioRequest } from "@/lib/zernio/client";
-import type { InstagramContext } from "./context";
+import * as facebook from "@/lib/meta/facebook";
+import { isFacebook, type SocialAccountContext } from "./context";
 
 type Comment = {
   id: string;
@@ -16,11 +17,13 @@ export async function getRecentMediaComments({
   sinceMs,
   max = 800,
 }: {
-  context: InstagramContext;
+  context: SocialAccountContext;
   mediaId: string;
   sinceMs: number;
   max?: number;
 }): Promise<meta.InstagramComment[]> {
+  if (isFacebook(context))
+    return facebook.getRecentPostComments(context.accessToken, mediaId, sinceMs, max);
   if (context.provider === "META")
     return meta.getRecentMediaComments(
       context.accessToken,
@@ -66,9 +69,11 @@ export async function getUserMedia({
   context,
   limit = 25,
 }: {
-  context: InstagramContext;
+  context: SocialAccountContext;
   limit?: number;
 }): Promise<meta.InstagramMedia[]> {
+  if (isFacebook(context))
+    return facebook.getPagePosts(context.accessToken, context.externalId, limit);
   if (context.provider === "META")
     return meta.getUserMedia(context.accessToken, limit);
   const result = await zernioRequest<{
@@ -112,9 +117,11 @@ export async function getAllUserMedia({
   context,
   max = 500,
 }: {
-  context: InstagramContext;
+  context: SocialAccountContext;
   max?: number;
 }) {
+  if (isFacebook(context))
+    return facebook.getPagePosts(context.accessToken, context.externalId, max);
   return context.provider === "META"
     ? meta.getAllUserMedia(context.accessToken, max)
     : getUserMedia({ context, limit: max });
@@ -123,8 +130,10 @@ export async function getAllUserMedia({
 export async function getUserInfo({
   context,
 }: {
-  context: InstagramContext;
+  context: SocialAccountContext;
 }): Promise<meta.InstagramUser> {
+  if (isFacebook(context))
+    return facebook.getPageInfo(context.accessToken, context.externalId);
   if (context.provider === "META") return meta.getUserInfo(context.accessToken);
   const result = await zernioRequest<{
     accounts: {

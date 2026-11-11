@@ -2,6 +2,7 @@ import { I18nProvider } from "@/lib/i18n/provider";
 import { getI18n } from "@/lib/i18n/server";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard-shell";
+import { socialAccountLabel } from "@/lib/social-account-label";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
@@ -9,7 +10,7 @@ import { isOperatorUser } from "@/lib/operator";
 
 export async function generateMetadata() {
   const { t } = await getI18n();
-  return { title: t("OpenReply - Open source Instagram comment-to-DM automation") };
+  return { title: t("OpenReply - Open source Instagram and Facebook comment-to-DM automation") };
 }
 
 export default async function DashboardLayout({
@@ -29,10 +30,10 @@ export default async function DashboardLayout({
     session.user.email
   );
   const [accounts, operatorWorkspaces] = await Promise.all([
-    prisma.instagramAccount.findMany({
+    prisma.socialAccount.findMany({
       where: { workspaceId: workspace.id },
       orderBy: { connectedAt: "desc" },
-      select: { username: true },
+      select: { username: true, name: true, platform: true },
     }),
     (await isOperatorUser(session.user.id))
       ? prisma.workspace.findMany({
@@ -46,8 +47,8 @@ export default async function DashboardLayout({
     <I18nProvider locale={locale}>
       <DashboardShell
         workspaceName={workspace.name}
-        instagramUsername={accounts[0]?.username ?? null}
-        instagramAccountCount={accounts.length}
+        primaryAccountLabel={accounts[0] ? socialAccountLabel(accounts[0]) : null}
+        accountCount={accounts.length}
         operatorWorkspaces={operatorWorkspaces}
         currentWorkspaceId={workspace.id}
       >

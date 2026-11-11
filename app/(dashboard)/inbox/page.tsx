@@ -15,6 +15,7 @@ import { useI18n } from "@/lib/i18n/provider";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { readCache, writeCache } from "@/lib/client-cache";
+import { contactLabel } from "@/lib/social-account-label";
 import type { ConversationListItem } from "@/app/api/instagram/conversations/route";
 import type { ThreadMessage } from "@/app/api/instagram/conversations/[id]/route";
 
@@ -46,6 +47,7 @@ export default function InboxPage() {
     if (typeof window === "undefined") return "";
     return window.sessionStorage.getItem("inbox:selectedAccount") ?? "";
   });
+  const selectedPlatform = accounts.find((account) => account.id === selectedAccountId)?.platform;
 
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [convLoading, setConvLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function InboxPage() {
       .then((r) => r.json())
       .then((payload) => {
         if (!payload.success) return;
-        const next: AccountOption[] = payload.data.instagramAccounts ?? [];
+        const next: AccountOption[] = payload.data.socialAccounts ?? [];
         setAccounts(next);
         setSelectedAccountId((prev) => {
           // Keep the seeded account only if it's still connected; otherwise
@@ -80,7 +82,7 @@ export default function InboxPage() {
           const stillValid = prev && next.some((a) => a.id === prev);
           return stillValid
             ? prev
-            : payload.data.selectedInstagramAccountId || next[0]?.id || "";
+            : payload.data.selectedAccountId || next[0]?.id || "";
         });
       })
       .catch(() => setAccounts([]));
@@ -99,7 +101,7 @@ export default function InboxPage() {
       if (!silent) setConvLoading(true);
       try {
         const res = await fetch(
-          `/api/instagram/conversations?instagramAccountId=${selectedAccountId}`,
+          `/api/instagram/conversations?socialAccountId=${selectedAccountId}`,
           { cache: "no-store" }
         );
         const data = await res.json();
@@ -151,7 +153,7 @@ export default function InboxPage() {
       if (!silent) setThreadLoading(true);
       try {
         const res = await fetch(
-          `/api/instagram/conversations/${conversationId}?instagramAccountId=${selectedAccountId}`,
+          `/api/instagram/conversations/${conversationId}?socialAccountId=${selectedAccountId}`,
           { cache: "no-store" }
         );
         const data = await res.json();
@@ -217,7 +219,7 @@ export default function InboxPage() {
 
     // Optimistically show the reply immediately, then confirm with the server.
     const optimistic: ThreadMessage = {
-      id: `optimistic-${Date.now()}`,
+      id: `optimistic-${crypto.randomUUID()}`,
       text,
       fromMe: true,
       fromUsername: null,
@@ -231,7 +233,7 @@ export default function InboxPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          instagramAccountId: selectedAccountId,
+          socialAccountId: selectedAccountId,
           recipientId: active.contact.id,
           text,
         }),
@@ -308,14 +310,14 @@ export default function InboxPage() {
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="truncate text-sm font-medium text-foreground">
-                        {c.detailsUnavailable ? t("Details unavailable") : `@${c.contact.username ?? "unknown"}`}
+                        {c.detailsUnavailable ? t("Details unavailable") : contactLabel(c.contact.username, selectedPlatform)}
                       </span>
                       <span className="shrink-0 text-[11px] text-zinc-500">
                         {formatTime(c.updatedTime, locale)}
                       </span>
                     </div>
                     {c.detailsUnavailable && (
-                      <p className="mt-0.5 text-xs text-muted">{t("Instagram could not load this conversation.")}</p>
+                      <p className="mt-0.5 text-xs text-muted">{t("Meta could not load this conversation.")}</p>
                     )}
                     {c.lastMessage && (
                       <p className="mt-0.5 truncate text-xs text-muted">
@@ -351,14 +353,14 @@ export default function InboxPage() {
                   {t("Back")}
                 </button>
                 <span className="truncate">
-                  {active.detailsUnavailable ? t("Details unavailable") : `@${active.contact.username ?? "unknown"}`}
+                  {active.detailsUnavailable ? t("Details unavailable") : contactLabel(active.contact.username, selectedPlatform)}
                 </span>
               </div>
 
               <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
                 {active.detailsUnavailable ? (
                   <p role="status" className="text-sm text-muted">
-                    {t("Instagram could not load the details of this conversation. Other conversations are still available. You can check this chat in Instagram.")}
+                    {t("Meta could not load the details of this conversation. Other conversations are still available. You can check this chat in Instagram or Messenger.")}
                   </p>
                 ) : threadLoading && messages.length === 0 ? (
                   <p className="text-sm text-muted">{t("Loading…")}</p>

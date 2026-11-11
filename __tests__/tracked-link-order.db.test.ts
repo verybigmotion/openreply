@@ -102,7 +102,7 @@ async function createCampaign(name: string, links: { primary?: string; second?: 
   const res = await POST(
     jsonRequest("POST", "http://localhost/api/automations", {
       name,
-      instagramAccountId: accountId,
+      socialAccountId: accountId,
       matchAnyPost: true,
       keywords: ["LINK"],
       dmMessage: "Here you go",
@@ -178,9 +178,9 @@ describe.skipIf(!DATABASE_URL)("tracked link order on a real Postgres", () => {
       INSERT INTO "User" ("id", "email", "updatedAt") VALUES ('user_test', 'order@test.dev', now());
       INSERT INTO "Workspace" ("id", "name", "ownerId", "updatedAt")
         VALUES ('workspace_test', 'Order', 'user_test', now());
-      INSERT INTO "InstagramAccount" ("id", "workspaceId", "instagramId", "username", "accessToken", "updatedAt")
+      INSERT INTO "SocialAccount" ("id", "workspaceId", "externalId", "username", "accessToken", "updatedAt")
         VALUES ('account_test', 'workspace_test', 'ig_order_test', 'order', 'token', now());
-      INSERT INTO "Automation" ("id", "workspaceId", "instagramAccountId", "name", "keywords", "dmMessage", "matchAnyPost", "linkButtonLabel", "updatedAt")
+      INSERT INTO "Automation" ("id", "workspaceId", "socialAccountId", "name", "keywords", "dmMessage", "matchAnyPost", "linkButtonLabel", "updatedAt")
       VALUES
         ('${legacy.tiedCampaign}', 'workspace_test', 'account_test', 'Tied', '{LINK}', 'hi', true, 'Get offer', now()),
         ('${legacy.distinctCampaign}', 'workspace_test', 'account_test', 'Distinct', '{LINK}', 'hi', true, 'Get offer', now()),

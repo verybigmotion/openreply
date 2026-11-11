@@ -20,6 +20,19 @@ export function buildDuplicateName(name: string): string {
   return `${trimmed}${COPY_SUFFIX}`;
 }
 
+async function findTargetAccount(workspaceId: string, sourceAccountId: string) {
+  const source = await prisma.socialAccount.findUnique({
+    where: { id: sourceAccountId },
+    select: { platform: true },
+  });
+  const accounts = await prisma.socialAccount.findMany({
+    where: { workspaceId },
+    orderBy: { connectedAt: "asc" },
+    select: { id: true, platform: true },
+  });
+  return accounts.find((account) => account.platform === source?.platform) ?? null;
+}
+
 /**
  * Copy a campaign inside its workspace. Returns null when the campaign does
  * not exist in that workspace.
@@ -52,11 +65,7 @@ export async function duplicateCampaign({
 
   const crossWorkspace = targetWorkspaceId !== workspaceId;
   const targetAccount = crossWorkspace
-    ? await prisma.instagramAccount.findFirst({
-        where: { workspaceId: targetWorkspaceId },
-        orderBy: { connectedAt: "asc" },
-        select: { id: true },
-      })
+    ? await findTargetAccount(targetWorkspaceId, source.socialAccountId)
     : null;
   if (crossWorkspace && !targetAccount) return null;
 
@@ -80,7 +89,7 @@ export async function duplicateCampaign({
       ...(crossWorkspace && targetAccount
         ? {
             workspaceId: targetWorkspaceId,
-            instagramAccountId: targetAccount.id,
+            socialAccountId: targetAccount.id,
             postId: null,
             postUrl: null,
             pendingNextReel: false,

@@ -27,9 +27,9 @@ import {
   sendPrivateReplyWithLinkButton,
 } from "@/lib/instagram/provider";
 import {
-  createInstagramContext,
-  hasInstagramCredentials,
-  type InstagramContext,
+  createSocialAccountContext,
+  hasProviderCredentials,
+  type SocialAccountContext,
 } from "@/lib/instagram/provider";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
 import {
@@ -50,6 +50,8 @@ import {
 } from "@/lib/tracking/message";
 import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
 import { findAwaitedCampaignId } from "@/lib/queue/awaited-campaign";
+import { directMessageLogId, revealLogId, sentTo } from "@/lib/queue/dm-recipient";
+import { isFollowGated } from "@/lib/social-platform";
 
 import {
   ZernioApiError,
@@ -137,7 +139,7 @@ type RevealAutomation = {
   dmMessage: string;
   linkButtonLabel: string | null;
   trackedLinks: WorkerTrackedLink[];
-  instagramAccount: { instagramId: string };
+  socialAccount: { externalId: string };
 };
 
 /**
@@ -152,7 +154,7 @@ async function sendRevealDirectMessage({
   commenterName,
   context,
 }: {
-  accessToken: InstagramContext;
+  accessToken: SocialAccountContext;
   automation: RevealAutomation;
   userId: string;
   commenterName: string | null;
@@ -161,7 +163,6 @@ async function sendRevealDirectMessage({
   if (automation.trackedLinks.length === 0) {
     await sendDirectMessage({
       context: accessToken,
-      instagramAccountId: automation.instagramAccount.instagramId,
       userId: userId,
       message: renderMessageWithTracking({
         message: automation.dmMessage,
@@ -186,7 +187,6 @@ async function sendRevealDirectMessage({
   try {
     await sendDirectMessageWithLinkButton({
       context: accessToken,
-      instagramAccountId: automation.instagramAccount.instagramId,
       userId: userId,
       text: bodyText,
       buttons: buttons,
@@ -203,7 +203,6 @@ async function sendRevealDirectMessage({
     try {
       await sendDirectMessage({
         context: accessToken,
-        instagramAccountId: automation.instagramAccount.instagramId,
         userId: userId,
         message: buildInlineLinkFallback(
           automation.dmMessage,
@@ -220,7 +219,7 @@ async function sendRevealDirectMessage({
 
 
 function connectionScope(data: DmQueueJob) {
-  return data.accountConnectionId ? { instagramAccountId: data.accountConnectionId } : {};
+  return data.accountConnectionId ? { socialAccountId: data.accountConnectionId } : {};
 }
 
 async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
@@ -248,12 +247,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         { matchAnyPost: true },
       ],
       isActive: true,
-      instagramAccount: {
-        instagramId: instagramAccountId,
+      socialAccount: {
+        externalId: instagramAccountId,
       },
     },
     include: {
-      instagramAccount: true,
+      socialAccount: true,
       workspace: true,
       trackedLinks: {
         select: {
@@ -305,7 +304,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       continue;
     }
 
-    if (!hasInstagramCredentials(automation.instagramAccount)) {
+    if (!hasProviderCredentials(automation.socialAccount)) {
       await prisma.dmLog.upsert({
         where: {
           automationId_commentId: {
@@ -316,27 +315,27 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         create: {
           workspaceId: automation.workspaceId,
           automationId: automation.id,
-          instagramAccountId: automation.instagramAccountId,
+          socialAccountId: automation.socialAccountId,
           commenterId,
           commenterName,
           commentText,
           commentId,
           matchedKeyword: matchResult.matchedKeyword,
           status: "FAILED",
-          errorMessage: "No Instagram access token available",
+          errorMessage: "No access token available",
         },
         update: {
           status: "FAILED",
-          errorMessage: "No Instagram access token available",
+          errorMessage: "No access token available",
         },
       });
       continue;
     }
 
-    let accessToken: InstagramContext;
+    let accessToken: SocialAccountContext;
     try {
-      accessToken = await createInstagramContext(
-        automation.instagramAccount,
+      accessToken = await createSocialAccountContext(
+        automation.socialAccount,
         `${job.id}:${automation.id}`
       );
     } catch {
@@ -350,18 +349,18 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         create: {
           workspaceId: automation.workspaceId,
           automationId: automation.id,
-          instagramAccountId: automation.instagramAccountId,
+          socialAccountId: automation.socialAccountId,
           commenterId,
           commenterName,
           commentText,
           commentId,
           matchedKeyword: matchResult.matchedKeyword,
           status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
+          errorMessage: "Failed to decrypt access token",
         },
         update: {
           status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
+          errorMessage: "Failed to decrypt access token",
         },
       });
       continue;
@@ -375,7 +374,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         data: {
           workspaceId: automation.workspaceId,
           automationId: automation.id,
-          instagramAccountId: automation.instagramAccountId,
+          socialAccountId: automation.socialAccountId,
           commenterId,
           commenterName,
           commentText,
@@ -479,7 +478,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         data: {
           status: "SKIPPED_DEDUP",
           matchedKeyword: matchResult.matchedKeyword,
-          errorMessage: `Another campaign (${privateReplyUsedBy.automation?.name ?? "unknown"}) already sent the one private reply Instagram allows for this comment`,
+          errorMessage: `Another campaign (${privateReplyUsedBy.automation?.name ?? "unknown"}) already sent the one private reply Meta allows for this comment`,
         },
       });
       continue;
@@ -545,7 +544,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           data: {
             status: "SKIPPED_RATE_LIMIT",
             matchedKeyword: matchResult.matchedKeyword,
-            errorMessage: "Hourly Instagram DM rate limit reached",
+            errorMessage: "Hourly DM rate limit reached",
           },
         });
         continue;
@@ -574,7 +573,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           },
           {
             delay: rateLimit.requeueDelayMs,
-            jobId: `comment_${instagramAccountId}_${commentId}_retry_${requeueAttempt + 1}`,
+            jobId: `comment_${job.data.accountConnectionId ?? instagramAccountId}_${commentId}_retry_${requeueAttempt + 1}`,
           }
         );
         continue;
@@ -595,7 +594,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // status at comment time: confirmed followers get the link now, everyone
     // else gets the "follow me first" prompt (re-verified on tap).
     let sendFollowPrompt = false;
-    if (automation.requireFollow && !useOpeningDm) {
+    if (isFollowGated(automation) && !useOpeningDm) {
       const alreadyFollows = await getUserFollowStatus({
         context: accessToken,
         recipientId: commenterId,
@@ -606,6 +605,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           : alreadyFollows !== true;
     }
 
+    let delivered: { recipient_id?: string } | undefined;
     try {
       if (useOpeningDm) {
         const openingText = renderMessageWithTracking({
@@ -613,13 +613,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           commenterName,
           trackedLinks: [],
         });
-        await sendPrivateReplyWithButton({
+        delivered = await sendPrivateReplyWithButton({
           context: accessToken,
-          instagramAccountId: automation.instagramAccount.instagramId,
           commentId: commentId,
           text: openingText,
           buttonTitle: automation.openingDmButtonLabel as string,
-          payload: automation.requireFollow
+          payload: isFollowGated(automation)
             ? `followcheck:${automation.id}`
             : `reveal:${automation.id}`,
           postId: mediaId,
@@ -631,9 +630,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
             "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
           commenterName,
         });
-        await sendPrivateReplyWithButton({
+        delivered = await sendPrivateReplyWithButton({
           context: accessToken,
-          instagramAccountId: automation.instagramAccount.instagramId,
           commentId: commentId,
           text: promptText,
           buttonTitle: automation.followPromptButtonLabel || "i'm following",
@@ -653,9 +651,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         );
 
         try {
-          await sendPrivateReplyWithLinkButton({
+          delivered = await sendPrivateReplyWithLinkButton({
             context: accessToken,
-            instagramAccountId: automation.instagramAccount.instagramId,
             commentId: commentId,
             text: bodyText,
             buttons: buttons,
@@ -678,9 +675,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
             bodyText
           );
           try {
-            await sendPrivateReply({
+            delivered = await sendPrivateReply({
               context: accessToken,
-              instagramAccountId: automation.instagramAccount.instagramId,
               commentId: commentId,
               message: fallbackMessage,
               postId: mediaId,
@@ -698,9 +694,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           commenterName,
           trackedLinks: automation.trackedLinks,
         });
-        await sendPrivateReply({
+        delivered = await sendPrivateReply({
           context: accessToken,
-          instagramAccountId: automation.instagramAccount.instagramId,
           commentId: commentId,
           message: dmMessage,
           postId: mediaId,
@@ -718,6 +713,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           status: "SENT",
           dmSentAt: new Date(),
           errorMessage: null,
+          recipientId: delivered?.recipient_id ?? null,
         },
       });
     } catch (error) {
@@ -759,7 +755,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           },
           {
             delay: pauseDelayMs,
-            jobId: `comment_${instagramAccountId}_${commentId}_retry_${requeueAttempt + 1}`,
+            jobId: `comment_${job.data.accountConnectionId ?? instagramAccountId}_${commentId}_retry_${requeueAttempt + 1}`,
           }
         );
         continue;
@@ -844,7 +840,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   const automation = await prisma.automation.findFirst({
     where: { id: automationId, isActive: true, ...connectionScope(job.data) },
     include: {
-      instagramAccount: true,
+      socialAccount: true,
       workspace: true,
       trackedLinks: {
         select: { slug: true, label: true, destinationUrl: true },
@@ -855,15 +851,15 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
 
   if (
     !automation ||
-    automation.instagramAccount.instagramId !== instagramAccountId ||
-    !hasInstagramCredentials(automation.instagramAccount)
+    automation.socialAccount.externalId !== instagramAccountId ||
+    !hasProviderCredentials(automation.socialAccount)
   ) {
     return;
   }
 
   // Duplicate sends are enabled: every button tap re-sends the reveal
   // instead of only firing once per person.
-  const dedupeId = `reveal:${userId}`;
+  const dedupeId = revealLogId(userId);
 
   if (fallback) {
     const existingReveal = await prisma.dmLog.findUnique({
@@ -888,15 +884,15 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
 
   // Personalize {username} from the opening DM log for this user, if present.
   const openingLog = await prisma.dmLog.findFirst({
-    where: { automationId: automation.id, commenterId: userId },
+    where: { automationId: automation.id, ...sentTo(userId) },
     select: { commenterName: true },
   });
   const commenterName = openingLog?.commenterName ?? null;
 
-  let accessToken: InstagramContext;
+  let accessToken: SocialAccountContext;
   try {
-    accessToken = await createInstagramContext(
-      automation.instagramAccount,
+    accessToken = await createSocialAccountContext(
+      automation.socialAccount,
       `${job.id}:${automation.id}`,
     );
   } catch {
@@ -908,7 +904,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       ? createHash("sha256")
           .update(
             JSON.stringify([
-              automation.instagramAccountId,
+              automation.socialAccountId,
               automation.id,
               userId,
               job.data.mid ?? job.id ?? payload,
@@ -923,7 +919,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   // be bypassable by just reading the DM and waiting. Following, or
   // unverifiable (null), falls through and delivers the link — fail-open so a
   // real follower is never trapped.
-  if ((isFollowCheck || fallback) && automation.requireFollow) {
+  if ((isFollowCheck || fallback) && isFollowGated(automation)) {
     const follows = await getUserFollowStatus({
       context: accessToken,
       recipientId: userId,
@@ -942,7 +938,6 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
           send: () =>
             sendDirectMessageWithButton({
               context: accessToken,
-              instagramAccountId: automation.instagramAccount.instagramId,
               userId: userId,
               text: promptText,
               buttonTitle:
@@ -972,7 +967,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       create: {
         workspaceId: automation.workspaceId,
         automationId: automation.id,
-        instagramAccountId: automation.instagramAccountId,
+        socialAccountId: automation.socialAccountId,
         commenterId: userId,
         commenterName,
         commentText: "(button tap)",
@@ -1014,8 +1009,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       await getDMQueue().add(
         FOLLOWUP_JOB_NAME,
         {
-          instagramAccountId: automation.instagramAccount.instagramId,
-          accountConnectionId: automation.instagramAccountId,
+          instagramAccountId: automation.socialAccount.externalId,
+          accountConnectionId: automation.socialAccountId,
           userId,
           automationId: automation.id,
           commenterName,
@@ -1036,7 +1031,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       create: {
         workspaceId: automation.workspaceId,
         automationId: automation.id,
-        instagramAccountId: automation.instagramAccountId,
+        socialAccountId: automation.socialAccountId,
         commenterId: userId,
         commenterName,
         commentText: "(button tap)",
@@ -1077,7 +1072,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       create: {
         workspaceId: automation.workspaceId,
         automationId: automation.id,
-        instagramAccountId: automation.instagramAccountId,
+        socialAccountId: automation.socialAccountId,
         commenterId: userId,
         commenterName,
         commentText: "(button tap)",
@@ -1106,23 +1101,23 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
 
   const automation = await prisma.automation.findFirst({
     where: { id: automationId, isActive: true, ...connectionScope(job.data) },
-    include: { instagramAccount: true },
+    include: { socialAccount: true },
   });
 
   if (
     !automation ||
     !automation.followUpEnabled ||
     !automation.followUpMessage?.trim() ||
-    automation.instagramAccount.instagramId !== instagramAccountId ||
-    !hasInstagramCredentials(automation.instagramAccount)
+    automation.socialAccount.externalId !== instagramAccountId ||
+    !hasProviderCredentials(automation.socialAccount)
   ) {
     return;
   }
 
-  let accessToken: InstagramContext;
+  let accessToken: SocialAccountContext;
   try {
-    accessToken = await createInstagramContext(
-      automation.instagramAccount,
+    accessToken = await createSocialAccountContext(
+      automation.socialAccount,
       `${job.id}:${automation.id}`
     );
   } catch {
@@ -1132,7 +1127,6 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
   try {
     await sendDirectMessage({
       context: accessToken,
-      instagramAccountId: automation.instagramAccount.instagramId,
       userId: userId,
       message: renderMessageWithoutLink({
         message: automation.followUpMessage,
@@ -1163,10 +1157,10 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       ...connectionScope(job.data),
       dmTriggerEnabled: true,
       isActive: true,
-      instagramAccount: { instagramId: instagramAccountId },
+      socialAccount: { externalId: instagramAccountId },
     },
     include: {
-      instagramAccount: true,
+      socialAccount: true,
       workspace: true,
       trackedLinks: {
         select: { slug: true, label: true, destinationUrl: true },
@@ -1176,7 +1170,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     orderBy: { createdAt: "asc" },
   });
 
-  const dedupeId = `dm:${messageId}`;
+  const dedupeId = directMessageLogId(messageId);
 
   for (const automation of automations) {
     const matchResult = automation.matchAnyWord
@@ -1211,14 +1205,14 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     const logBase = {
       workspaceId: automation.workspaceId,
       automationId: automation.id,
-      instagramAccountId: automation.instagramAccountId,
+      socialAccountId: automation.socialAccountId,
       commenterId: senderId,
       commentText: messageText,
       commentId: dedupeId,
       matchedKeyword: matchResult.matchedKeyword,
     };
 
-    if (!hasInstagramCredentials(automation.instagramAccount)) {
+    if (!hasProviderCredentials(automation.socialAccount)) {
       await prisma.dmLog.upsert({
         where: {
           automationId_commentId: {
@@ -1229,20 +1223,20 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         create: {
           ...logBase,
           status: "FAILED",
-          errorMessage: "No Instagram access token available",
+          errorMessage: "No access token available",
         },
         update: {
           status: "FAILED",
-          errorMessage: "No Instagram access token available",
+          errorMessage: "No access token available",
         },
       });
       continue;
     }
 
-    let accessToken: InstagramContext;
+    let accessToken: SocialAccountContext;
     try {
-      accessToken = await createInstagramContext(
-        automation.instagramAccount,
+      accessToken = await createSocialAccountContext(
+        automation.socialAccount,
         `${job.id}:${automation.id}`
       );
     } catch {
@@ -1256,11 +1250,11 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         create: {
           ...logBase,
           status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
+          errorMessage: "Failed to decrypt access token",
         },
         update: {
           status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
+          errorMessage: "Failed to decrypt access token",
         },
       });
       continue;
@@ -1269,7 +1263,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     // Reuse a name captured on an earlier interaction so {username} still
     // renders — the messages webhook carries only the sender's IGSID.
     const priorLog = await prisma.dmLog.findFirst({
-      where: { automationId: automation.id, commenterId: senderId },
+      where: { automationId: automation.id, ...sentTo(senderId) },
       select: { commenterName: true },
     });
     const commenterName = priorLog?.commenterName ?? null;
@@ -1282,7 +1276,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     // the user has already claimed to follow; here it would hand the link to
     // anyone whose status the API happens not to resolve.
     let sendFollowPrompt = false;
-    if (automation.requireFollow) {
+    if (isFollowGated(automation)) {
       const follows = await getUserFollowStatus({
         context: accessToken,
         recipientId: senderId,
@@ -1325,7 +1319,6 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         });
         await sendDirectMessageWithButton({
           context: accessToken,
-          instagramAccountId: automation.instagramAccount.instagramId,
           userId: senderId,
           text: promptText,
           buttonTitle: automation.followPromptButtonLabel || "I'm following ✅",
@@ -1347,8 +1340,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           await getDMQueue().add(
             FOLLOWUP_JOB_NAME,
             {
-              instagramAccountId: automation.instagramAccount.instagramId,
-              accountConnectionId: automation.instagramAccountId,
+              instagramAccountId: automation.socialAccount.externalId,
+              accountConnectionId: automation.socialAccountId,
               userId: senderId,
               automationId: automation.id,
               commenterName,
@@ -1444,8 +1437,8 @@ async function recordWorkerFailure(
     const commentId =
       job && "commentId" in job.data ? job.data.commentId : null;
     const account = instagramAccountId
-      ? await prisma.instagramAccount.findUnique({
-          where: { instagramId: instagramAccountId },
+      ? await prisma.socialAccount.findUnique({
+          where: { externalId: instagramAccountId },
           select: { workspaceId: true },
         })
       : null;

@@ -37,7 +37,7 @@ const baseAutomation = {
   workspace: {
     name: "Acme Studio",
   },
-  instagramAccount: {
+  socialAccount: {
     username: "acme",
   },
   trackedLinks: [
@@ -81,7 +81,7 @@ describe("campaign reports", () => {
       workspace: { name: "Acme Studio" },
       campaign: {
         name: "Product Link Drop",
-        instagramUsername: "acme",
+        socialAccountLabel: "@acme",
       },
       metrics: {
         sent: 20,

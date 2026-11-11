@@ -20,7 +20,7 @@ export async function POST(request: Request, segmentData: { params: Promise<{ wo
   const parsed = eventEnvelopeSchema.safeParse(payload);
   if (!parsed.success) return NextResponse.json({ success: true, ignored: true });
   // Zernio subscriptions are account-wide. Drop other profiles before persisting any payload.
-  const account = await prisma.instagramAccount.findFirst({ where: { workspaceId, provider: 'ZERNIO', zernioAccountId: parsed.data.account.id } });
+  const account = await prisma.socialAccount.findFirst({ where: { workspaceId, provider: 'ZERNIO', zernioAccountId: parsed.data.account.id } });
   if (!account) return NextResponse.json({ success: true, ignored: true });
   const normalized = normalizeZernioEvent({ payload, account });
   if (!normalized) return NextResponse.json({ success: true, ignored: true });

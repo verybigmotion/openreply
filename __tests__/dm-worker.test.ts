@@ -33,7 +33,7 @@ const {
       update: vi.fn(),
       create: vi.fn(),
     },
-    instagramAccount: {
+    socialAccount: {
       findUnique: vi.fn(),
     },
     operationalEvent: {
@@ -153,7 +153,7 @@ const usagePeriodStart = new Date("2026-05-01T00:00:00.000Z");
 const mockAutomation = {
   id: "auto_789",
   workspaceId: "workspace_123",
-  instagramAccountId: "ig_account_row_1",
+  socialAccountId: "ig_account_row_1",
   postId: "media_101",
   keywords: ["LINK", "PRICE"],
   dmMessage: "Hey {username}! Here is the link: https://example.com",
@@ -168,9 +168,10 @@ const mockAutomation = {
   publicReplyEnabled: false,
   publicReplyMessage: null,
   publicReplyMessages: [],
-  instagramAccount: {
+  socialAccount: {
     id: "ig_account_row_1",
-    instagramId: "ig_456",
+    externalId: "ig_456",
+    platform: "INSTAGRAM",
     accessToken: "encrypted_token_abc",
   },
   workspace: {
@@ -246,7 +247,7 @@ beforeEach(() => {
   mockPrisma.dmLog.upsert.mockResolvedValue({});
   mockPrisma.dmLog.update.mockResolvedValue({});
   mockFindAwaitedCampaignId.mockResolvedValue("auto_789");
-  mockPrisma.instagramAccount.findUnique.mockResolvedValue({
+  mockPrisma.socialAccount.findUnique.mockResolvedValue({
     workspaceId: "workspace_123",
   });
   mockPrisma.operationalEvent.create.mockResolvedValue({});
@@ -337,10 +338,10 @@ describe("DM Worker — Full Pipeline", () => {
       where: {
         OR: [{ postId: "media_101" }, { matchAnyPost: true }],
         isActive: true,
-        instagramAccount: { instagramId: "ig_456" },
+        socialAccount: { externalId: "ig_456" },
       },
       include: {
-        instagramAccount: true,
+        socialAccount: true,
         workspace: true,
         trackedLinks: {
           select: {
@@ -369,7 +370,8 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "comment_555",
-      "Hey commenter_user! Here is the link: https://example.com"
+      "Hey commenter_user! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
     expect(mockReleaseWorkspaceDMReservation).not.toHaveBeenCalled();
     expect(mockPrisma.dmLog.update).toHaveBeenCalledWith({
@@ -379,7 +381,7 @@ describe("DM Worker — Full Pipeline", () => {
           commentId: "comment_555",
         },
       },
-      data: expect.objectContaining({ status: "SENT" }),
+      data: expect.objectContaining({ status: "SENT", recipientId: "commenter_999" }),
     });
   });
 
@@ -587,8 +589,8 @@ describe("DM Worker — Full Pipeline", () => {
     mockPrisma.automation.findMany.mockResolvedValue([
       {
         ...mockAutomation,
-        instagramAccount: {
-          ...mockAutomation.instagramAccount,
+        socialAccount: {
+          ...mockAutomation.socialAccount,
           accessToken: null,
         },
       },
@@ -601,7 +603,7 @@ describe("DM Worker — Full Pipeline", () => {
       expect.objectContaining({
         create: expect.objectContaining({
           status: "FAILED",
-          errorMessage: "No Instagram access token available",
+          errorMessage: "No access token available",
         }),
       })
     );
@@ -625,7 +627,8 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "comment_555",
-      "Hey there! Here is the link: https://example.com"
+      "Hey there! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
   });
 
@@ -663,7 +666,8 @@ describe("DM Worker — Full Pipeline", () => {
       [
         { title: "Get offer", url: "http://localhost:3000/r/abc123" },
         { title: "Book a call", url: "http://localhost:3000/r/def456" },
-      ]
+      ],
+      "INSTAGRAM"
     );
   });
 
@@ -696,7 +700,8 @@ describe("DM Worker — Full Pipeline", () => {
       "comment_555",
       "Follow me first commenter_user, then tap 👇",
       "I'm following ✅",
-      "followcheck:auto_789"
+      "followcheck:auto_789",
+      "INSTAGRAM"
     );
     expect(mockSendPrivateReplyWithLinkButton).not.toHaveBeenCalled();
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
@@ -732,7 +737,8 @@ describe("DM Worker — Full Pipeline", () => {
       "ig_456",
       "comment_555",
       "Hey commenter_user! Here is the offer:",
-      [{ title: "Get offer", url: "http://localhost:3000/r/abc123" }]
+      [{ title: "Get offer", url: "http://localhost:3000/r/abc123" }],
+      "INSTAGRAM"
     );
   });
 
@@ -765,7 +771,8 @@ describe("DM Worker — Full Pipeline", () => {
       "comment_555",
       "Hey commenter_user, welcome!",
       "Get the link",
-      "followcheck:auto_789"
+      "followcheck:auto_789",
+      "INSTAGRAM"
     );
     // Follow status is verified on the tap, not at comment time.
     expect(mockGetUserFollowStatus).not.toHaveBeenCalled();
@@ -801,7 +808,8 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "commenter_999",
-      "Hey commenter_user! Here is the link: https://example.com"
+      "Hey commenter_user! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
   });
 
@@ -901,7 +909,8 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "commenter_999",
-      "Hey commenter_user! Here is the link: https://example.com"
+      "Hey commenter_user! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
   });
 
@@ -1096,7 +1105,8 @@ describe("DM Worker — DM keyword trigger", () => {
       "decrypted_token",
       "ig_456",
       "commenter_999",
-      "Hey commenter_user! Here is the link: https://example.com"
+      "Hey commenter_user! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
     // Never a private reply — there is no comment to reply to.
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
@@ -1181,7 +1191,8 @@ describe("DM Worker — DM keyword trigger", () => {
       "commenter_999",
       expect.any(String),
       "I'm following ✅",
-      "followcheck:auto_789"
+      "followcheck:auto_789",
+      "INSTAGRAM"
     );
     expect(mockSendDirectMessage).not.toHaveBeenCalled();
   });
@@ -1250,8 +1261,8 @@ describe("Zernio worker routing", () => {
       {
         ...mockAutomation,
         requireFollow: true,
-        instagramAccount: {
-          ...mockAutomation.instagramAccount,
+        socialAccount: {
+          ...mockAutomation.socialAccount,
           provider: "ZERNIO",
           workspaceId: "workspace_123",
           zernioAccountId: "zernio_selected",
@@ -1301,8 +1312,8 @@ it("stops BullMQ retries after an ambiguous Zernio direct-message outcome", asyn
   });
   mockPrisma.automation.findFirst.mockResolvedValue({
     ...mockAutomation,
-    instagramAccount: {
-      ...mockAutomation.instagramAccount,
+    socialAccount: {
+      ...mockAutomation.socialAccount,
       provider: "ZERNIO",
       workspaceId: "workspace_123",
       zernioAccountId: "remote",
@@ -1329,7 +1340,7 @@ it('binds queued comments to the local connection that received them', async () 
   const job = createMockJob();
   Object.assign(job.data, { accountConnectionId: 'original-connection' });
   await getProcessor()(job);
-  expect(mockPrisma.automation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ instagramAccountId: 'original-connection' }) }));
+  expect(mockPrisma.automation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ socialAccountId: 'original-connection' }) }));
 });
 
 it('never automatically resends a private reply with an unconfirmed delivery', async () => {
@@ -1368,8 +1379,8 @@ describe("durable Zernio postback delivery", () => {
     });
     mockPrisma.automation.findFirst.mockResolvedValue({
       ...mockAutomation,
-      instagramAccount: {
-        ...mockAutomation.instagramAccount,
+      socialAccount: {
+        ...mockAutomation.socialAccount,
         provider: "ZERNIO",
         workspaceId: "workspace_123",
         zernioAccountId: "remote",
@@ -1465,8 +1476,8 @@ describe("durable Zernio postback delivery", () => {
     mockPrisma.automation.findFirst.mockResolvedValue({
       ...mockAutomation,
       requireFollow: true,
-      instagramAccount: {
-        ...mockAutomation.instagramAccount,
+      socialAccount: {
+        ...mockAutomation.socialAccount,
         provider: "ZERNIO",
         workspaceId: "workspace_123",
         zernioAccountId: "remote",

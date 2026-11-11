@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
-import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
+import { getWorkspaceSocialAccount } from "@/lib/instagram-accounts";
 import {
   getConversations,
   sendDirectMessage,
   MetaApiError,
 } from "@/lib/instagram/provider";
-import { createInstagramContext } from "@/lib/instagram/provider";
+import { createSocialAccountContext } from "@/lib/instagram/provider";
 
 export interface ConversationListItem {
   id: string;
@@ -22,7 +22,7 @@ export interface ConversationListItem {
 
 export interface ConversationsResponse {
   conversations: ConversationListItem[];
-  account: { id: string; username: string; instagramId: string };
+  account: { id: string; username: string; externalId: string };
 }
 
 // List the account's DM conversations for the inbox.
@@ -35,28 +35,28 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const account = await getWorkspaceInstagramAccount(
+  const account = await getWorkspaceSocialAccount(
     workspaceId,
-    request.nextUrl.searchParams.get("instagramAccountId")
+    request.nextUrl.searchParams.get("socialAccountId")
   );
   if (!account) {
     return NextResponse.json(
-      { success: false, error: "Instagram account not connected." },
+      { success: false, error: "No account connected." },
       { status: 400 }
     );
   }
 
   try {
-    const accessToken = await createInstagramContext(account);
+    const accessToken = await createSocialAccountContext(account);
     const raw = await getConversations({
       context: accessToken,
-      igUserId: account.instagramId,
+      igUserId: account.externalId,
     });
 
     const conversations: ConversationListItem[] = raw.map((c) => {
       const participants = c.participants?.data ?? [];
       const contact =
-        participants.find((p) => p.id !== account.instagramId) ?? null;
+        participants.find((p) => p.id !== account.externalId) ?? null;
       const last = c.messages?.data?.[0] ?? null;
 
       return {
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         lastMessage: last
           ? {
               text: last.message ?? "",
-              fromMe: last.from?.id === account.instagramId,
+              fromMe: last.from?.id === account.externalId,
               createdTime: last.created_time ?? null,
             }
           : null,
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       account: {
         id: account.id,
         username: account.username,
-        instagramId: account.instagramId,
+        externalId: account.externalId,
       },
     };
     return NextResponse.json({ success: true, data });
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
   }
 
   let body: {
-    instagramAccountId?: string;
+    socialAccountId?: string;
     recipientId?: string;
     text?: string;
   };
@@ -131,22 +131,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const account = await getWorkspaceInstagramAccount(
+  const account = await getWorkspaceSocialAccount(
     workspaceId,
-    body.instagramAccountId ?? null
+    body.socialAccountId ?? null
   );
   if (!account) {
     return NextResponse.json(
-      { success: false, error: "Instagram account not connected." },
+      { success: false, error: "No account connected." },
       { status: 400 }
     );
   }
 
   try {
-    const accessToken = await createInstagramContext(account);
+    const accessToken = await createSocialAccountContext(account);
     const result = await sendDirectMessage({
       context: accessToken,
-      instagramAccountId: account.instagramId,
       userId: body.recipientId,
       message: text,
     });

@@ -20,7 +20,7 @@ describe("findAwaitedCampaignId", () => {
     await findAwaitedCampaignId("ig_1", "user_1");
     expect(mockFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { commenterId: "user_1", status: "SENT", instagramAccount: { instagramId: "ig_1" } },
+        where: { OR: [{ commenterId: "user_1" }, { recipientId: "user_1" }], status: "SENT", socialAccount: { externalId: "ig_1" } },
         orderBy: { dmSentAt: "desc" },
       })
     );

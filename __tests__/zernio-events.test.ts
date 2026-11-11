@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeZernioEvent, verifyZernioSignature } from '@/lib/zernio/normalize-event';
 import { parseCommentEvents, parseMessageEvents, parsePostbackEvents, parseReadEvents } from '@/lib/meta/webhook';
 
-const account = { zernioAccountId: 'za1', instagramId: 'ig1' };
+const account = { zernioAccountId: 'za1', externalId: 'ig1' };
 const envelope = { id: 'evt1', account: { id: 'za1', platform: 'instagram' } };
 
 describe('Zernio event boundary', () => {

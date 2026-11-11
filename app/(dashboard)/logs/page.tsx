@@ -1,5 +1,7 @@
 "use client";
 
+import { contactLabel, socialAccountLabel } from "@/lib/social-account-label";
+import type { SocialPlatform } from "@/lib/social-platform";
 /**
  * DM Logs Page
  *
@@ -20,7 +22,7 @@ interface DmLog {
   errorMessage: string | null;
   createdAt: string;
   automation: { name: string; keywords: string[] };
-  instagramAccount: { username: string };
+  socialAccount: { username: string; name: string | null; platform: SocialPlatform };
 }
 
 interface Pagination {
@@ -55,7 +57,7 @@ export default function LogsPage() {
       const params = new URLSearchParams({ page: String(page), limit: "20" });
       if (statusFilter !== "ALL") params.set("status", statusFilter);
       if (selectedAccountId !== "all") {
-        params.set("instagramAccountId", selectedAccountId);
+        params.set("socialAccountId", selectedAccountId);
       }
 
       const res = await fetch(`/api/logs?${params}`);
@@ -75,7 +77,7 @@ export default function LogsPage() {
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
       .then((payload) => {
-        if (payload.success) setAccounts(payload.data.instagramAccounts ?? []);
+        if (payload.success) setAccounts(payload.data.socialAccounts ?? []);
       })
       .catch(console.error);
   }, []);
@@ -170,7 +172,7 @@ export default function LogsPage() {
                   <tr key={log.id} className="hover:bg-surface-hover/50 transition-colors">
                     <td className="px-4 py-4 sm:px-6">
                       <span className="font-medium text-foreground">
-                        @{log.commenterName ?? log.commenterId.slice(0, 8)}
+                        {contactLabel(log.commenterName ?? log.commenterId.slice(0, 8), log.socialAccount.platform)}
                       </span>
                     </td>
                     <td className="px-4 py-4 max-w-[200px] sm:px-6">
@@ -180,7 +182,7 @@ export default function LogsPage() {
                       <span className="text-muted">{log.automation.name}</span>
                     </td>
                     <td className="px-4 py-4 sm:px-6">
-                      <span className="text-muted">@{log.instagramAccount.username}</span>
+                      <span className="text-muted">{socialAccountLabel(log.socialAccount)}</span>
                     </td>
                     <td className="px-4 py-4 sm:px-6">
                       <StatusBadge status={log.status} />

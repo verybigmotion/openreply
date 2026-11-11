@@ -17,7 +17,7 @@ export async function listProfiles(apiKey: string) {
 export async function listInstagramAccounts({ apiKey, profileId }: { apiKey: string; profileId: string }) {
   const data = accountsSchema.parse(await zernioRequest({ apiKey, path: `/accounts?profileId=${encodeURIComponent(profileId)}&platform=instagram` }));
   return data.accounts.filter(a => a.platform === 'instagram' && a.isActive !== false && a.platformUserId && (typeof a.profileId === 'string' ? a.profileId : a.profileId._id) === profileId)
-    .map(a => ({ id: a._id, instagramId: a.platformUserId!, username: a.username, name: a.displayName ?? null }));
+    .map(a => ({ id: a._id, externalId: a.platformUserId!, username: a.username, name: a.displayName ?? null }));
 }
 
 export async function listWebhooks(apiKey: string) {

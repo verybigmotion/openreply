@@ -12,6 +12,7 @@ import type { Locale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useState } from "react";
 import AccountSelect from "@/components/account-select";
+import { socialAccountLabel } from "@/lib/social-account-label";
 import StatCard from "@/components/stat-card";
 import FollowerChart from "@/components/follower-chart";
 import type { OverviewResponse } from "@/app/api/instagram/overview/route";
@@ -46,7 +47,7 @@ export default function OverviewPage() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (selectedAccountId !== "all") {
-      params.set("instagramAccountId", selectedAccountId);
+      params.set("socialAccountId", selectedAccountId);
     }
     params.set("count", count);
 
@@ -93,10 +94,10 @@ export default function OverviewPage() {
         <p className="text-sm text-error">{error === "Failed to load overview" ? t("Failed to load overview") : error}</p>
         {error.includes("connect") && (
           <a
-            href="/api/instagram/connect"
+            href="/settings"
             className="mt-4 inline-block text-sm text-accent hover:underline"
           >
-            {t("Connect Instagram")}
+            {t("Connect Instagram or Facebook")}
           </a>
         )}
       </div>
@@ -104,6 +105,8 @@ export default function OverviewPage() {
   }
 
   if (!data) return null;
+
+  const hasSaves = data.account.platform !== "FACEBOOK";
 
   const { totals, posts, accounts, insightsAvailable, followers, followerHistory } =
     data;
@@ -116,8 +119,8 @@ export default function OverviewPage() {
           <h1 className="text-lg font-semibold text-foreground">{t("Overview")}</h1>
           <p className="text-sm text-muted mt-1">
             {data.provider !== "ZERNIO" && data.requestedCount === "all" ? t("All-time") : t("Recent")} —{" "}
-            {t(totals.posts === 1 ? "{count} post" : "{count} posts", { count: totals.posts })} {t("from @")}
-            {data.account.username}
+            {t(totals.posts === 1 ? "{count} post" : "{count} posts", { count: totals.posts })} {t("from")}{" "}
+            {socialAccountLabel(data.account)}
             {data.truncated ? t(" (capped at {count})", { count: totals.posts }) : ""}
           </p>
           {followers !== null && (
@@ -150,7 +153,9 @@ export default function OverviewPage() {
               accounts={accounts.map((a) => ({
                 id: a.id,
                 username: a.username,
-                instagramId: a.id,
+                name: a.name,
+                platform: a.platform,
+                externalId: a.id,
               }))}
               value={selectedAccountId}
               onChange={handleAccountChange}
@@ -168,21 +173,21 @@ export default function OverviewPage() {
             {t("Reconnect your account to grant it — likes and comments are shown in the meantime.")}
           </p>
           <a
-            href="/api/instagram/connect"
+            href={data.account.platform === "FACEBOOK" ? "/api/facebook/connect" : "/api/instagram/connect"}
             className="mt-3 inline-block text-sm text-accent hover:underline"
           >
-            {t("Reconnect Instagram")}
+            {t(data.account.platform === "FACEBOOK" ? "Reconnect Facebook Page" : "Reconnect Instagram")}
           </a>
         </div>
       )}
 
       {/* Aggregate totals */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 ${hasSaves ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
         <StatCard label={t("Views")} value={formatNumber(totals.views, locale)} />
         <StatCard label={t("Reach")} value={formatNumber(totals.reach, locale)} />
         <StatCard label={t("Likes")} value={formatNumber(totals.likes, locale)} />
         <StatCard label={t("Comments")} value={formatNumber(totals.comments, locale)} />
-        <StatCard label={t("Saved")} value={formatNumber(totals.saved, locale)} />
+        {hasSaves && <StatCard label={t("Saved")} value={formatNumber(totals.saved, locale)} />}
         <StatCard label={t("Shares")} value={formatNumber(totals.shares, locale)} />
       </div>
 
@@ -206,7 +211,7 @@ export default function OverviewPage() {
                   <th className="py-2 px-3 font-medium text-right">{t("Reach")}</th>
                   <th className="py-2 px-3 font-medium text-right">{t("Likes")}</th>
                   <th className="py-2 px-3 font-medium text-right">{t("Comments")}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t("Saved")}</th>
+                  {hasSaves && <th className="py-2 px-3 font-medium text-right">{t("Saved")}</th>}
                   <th className="py-2 px-3 font-medium text-right">{t("Shares")}</th>
                   <th className="py-2 pl-3 font-medium text-right">{t("Date")}</th>
                 </tr>
@@ -245,9 +250,11 @@ export default function OverviewPage() {
                     <td className="py-3 px-3 text-right text-muted">
                       {formatNumber(p.comments, locale)}
                     </td>
-                    <td className="py-3 px-3 text-right text-muted">
-                      {formatNumber(p.saved, locale)}
-                    </td>
+                    {hasSaves && (
+                      <td className="py-3 px-3 text-right text-muted">
+                        {formatNumber(p.saved, locale)}
+                      </td>
+                    )}
                     <td className="py-3 px-3 text-right text-muted">
                       {formatNumber(p.shares, locale)}
                     </td>

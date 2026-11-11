@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
-import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
+import { getWorkspaceSocialAccount } from "@/lib/instagram-accounts";
 import {
   getConversationMessages,
   MetaApiError,
 } from "@/lib/instagram/provider";
-import { createInstagramContext } from "@/lib/instagram/provider";
+import { createSocialAccountContext } from "@/lib/instagram/provider";
 
 export interface ThreadMessage {
   id: string;
@@ -33,19 +33,19 @@ export async function GET(request: NextRequest, { params }: RouteProps) {
 
   const { id: conversationId } = await params;
 
-  const account = await getWorkspaceInstagramAccount(
+  const account = await getWorkspaceSocialAccount(
     workspaceId,
-    request.nextUrl.searchParams.get("instagramAccountId")
+    request.nextUrl.searchParams.get("socialAccountId")
   );
   if (!account) {
     return NextResponse.json(
-      { success: false, error: "Instagram account not connected." },
+      { success: false, error: "No account connected." },
       { status: 400 }
     );
   }
 
   try {
-    const accessToken = await createInstagramContext(account);
+    const accessToken = await createSocialAccountContext(account);
     const raw = await getConversationMessages({
       context: accessToken,
       conversationId: conversationId,
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest, { params }: RouteProps) {
       .map((m) => ({
         id: m.id,
         text: m.message ?? "",
-        fromMe: m.from?.id === account.instagramId,
+        fromMe: m.from?.id === account.externalId,
         fromUsername: m.from?.username ?? null,
         createdTime: m.created_time ?? null,
       }))

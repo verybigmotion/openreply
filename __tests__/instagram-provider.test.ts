@@ -6,7 +6,7 @@ vi.mock("@/lib/meta/oauth", () => ({
   decryptToken: (value: string) => `decrypted:${value}`,
 }));
 import {
-  createInstagramContext,
+  createSocialAccountContext,
   sendPrivateReplyWithButton,
   sendDirectMessageWithLinkButton,
   getRecentMediaComments,
@@ -20,7 +20,7 @@ const context = {
   provider: "ZERNIO" as const,
   apiKey: "secret",
   accountId: "selected",
-  instagramId: "ig",
+  externalId: "ig",
 };
 const fetchMock = vi.fn();
 function respond(body: unknown, status = 200) {
@@ -38,11 +38,12 @@ describe("Instagram provider boundary", () => {
       apiKey: "encrypted",
     } as Awaited<ReturnType<typeof prisma.zernioConnection.findUnique>>);
     expect(
-      await createInstagramContext({
+      await createSocialAccountContext({
         provider: "ZERNIO",
+        platform: "INSTAGRAM",
         workspaceId: "workspace",
         zernioAccountId: "selected",
-        instagramId: "ig",
+        externalId: "ig",
         accessToken: "",
       })
     ).toEqual({ ...context, apiKey: "decrypted:encrypted" });
@@ -55,7 +56,6 @@ describe("Instagram provider boundary", () => {
     respond({ messageId: "mid" });
     await sendPrivateReplyWithButton({
       context,
-      instagramAccountId: "ig",
       commentId: "comment",
       postId: "post",
       text: "hello",
@@ -77,7 +77,6 @@ describe("Instagram provider boundary", () => {
     respond({ data: { messageId: "mid" } });
     await sendDirectMessageWithLinkButton({
       context,
-      instagramAccountId: "ig",
       userId: "recipient",
       text: "link",
       buttons: [{ title: "Open", url: "https://example.com" }],
@@ -122,7 +121,7 @@ describe("Instagram provider boundary", () => {
     respond({ data: [{ id: "media" }] });
     expect(
       await getUserMedia({
-        context: { provider: "META", accessToken: "meta" },
+        context: { provider: "META", accessToken: "meta", platform: "INSTAGRAM", externalId: "ig" },
         limit: 3,
       })
     ).toEqual([{ id: "media" }]);
@@ -252,7 +251,6 @@ it("adds a repeatable idempotency key and stops on an unconfirmed direct send", 
   );
   const input = {
     context: { ...context, operationId: "job:campaign" },
-    instagramAccountId: "ig",
     userId: "recipient",
     text: "link",
     buttons: [{ title: "Open", url: "https://example.com" }],

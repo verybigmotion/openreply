@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
-import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
+import { getWorkspaceSocialAccount } from "@/lib/instagram-accounts";
 import {
   getAllUserMedia,
   getMediaInsights,
   PermissionError,
   type InstagramMedia,
 } from "@/lib/instagram/provider";
-import { createInstagramContext } from "@/lib/instagram/provider";
+import { createSocialAccountContext } from "@/lib/instagram/provider";
+import type { SocialPlatform } from "@/lib/social-platform";
 import {
   ensureFollowerHistory,
   getFollowerHistory,
@@ -63,9 +64,11 @@ export interface OverviewPost {
   shares: number | null;
 }
 
+type OverviewAccount = { id: string; username: string; name: string | null; platform: SocialPlatform };
+
 export interface OverviewResponse {
-  account: { id: string; username: string };
-  accounts: Array<{ id: string; username: string }>;
+  account: OverviewAccount;
+  accounts: OverviewAccount[];
   requestedCount: "all" | number;
   truncated: boolean;
   insightsAvailable: boolean;
@@ -104,9 +107,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const account = await getWorkspaceInstagramAccount(
+  const account = await getWorkspaceSocialAccount(
     workspaceId,
-    request.nextUrl.searchParams.get("instagramAccountId")
+    request.nextUrl.searchParams.get("socialAccountId")
   );
 
   if (!account) {
@@ -114,14 +117,14 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error:
-          "Instagram account not connected. Please connect your account first.",
+          "No account connected. Please connect an account first.",
       },
       { status: 400 }
     );
   }
 
   try {
-    const accessToken = await createInstagramContext(account);
+    const accessToken = await createSocialAccountContext(account);
 
     // `count` is either "all" or a positive integer (last N posts).
     const countParam = request.nextUrl.searchParams.get("count");
@@ -153,7 +156,7 @@ export async function GET(request: NextRequest) {
       media,
       INSIGHTS_CONCURRENCY,
       async (m) => {
-        const metrics = isVideoLike(m)
+        const metrics = isVideoLike(m) || account.platform === "FACEBOOK"
           ? ["views", "reach", "saved", "shares", "total_interactions"]
           : ["reach", "saved", "shares", "total_interactions"];
         try {
@@ -216,10 +219,10 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const accounts = await prisma.instagramAccount.findMany({
+    const accounts = await prisma.socialAccount.findMany({
       where: { workspaceId },
       orderBy: { connectedAt: "desc" },
-      select: { id: true, username: true },
+      select: { id: true, username: true, name: true, platform: true },
     });
 
     // Followers is a point-in-time figure and deliberately not part of
@@ -229,7 +232,7 @@ export async function GET(request: NextRequest) {
     let followerHistory: FollowerHistoryPoint[] = [];
     try {
       followers = await ensureFollowerHistory(
-        { id: account.id, instagramId: account.instagramId },
+        { id: account.id, externalId: account.externalId },
         accessToken
       );
       followerHistory = await getFollowerHistory(account.id);
@@ -241,7 +244,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data: OverviewResponse = {
-      account: { id: account.id, username: account.username },
+      account: { id: account.id, username: account.username, name: account.name, platform: account.platform },
       accounts,
       requestedCount,
       provider: account.provider,

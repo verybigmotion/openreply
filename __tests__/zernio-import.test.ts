@@ -10,11 +10,11 @@ vi.mock('@/lib/zernio/route-handler', () => ({
 }));
 vi.mock('@/lib/zernio/load-connection', () => ({ loadConnection: async () => ({ apiKey: 'key', profileId: 'profile', webhookId: 'hook' }) }));
 vi.mock('@/lib/meta/oauth', () => ({ decryptToken: (token: string) => token }));
-vi.mock('@/lib/zernio/manage-remote', () => ({ listInstagramAccounts: async () => [{ id: 'remote', instagramId: 'ig', username: 'ours', name: null }] }));
+vi.mock('@/lib/zernio/manage-remote', () => ({ listInstagramAccounts: async () => [{ id: 'remote', externalId: 'ig', username: 'ours', name: null }] }));
 vi.mock('@/lib/zernio/lock-connection', () => ({
   withConnectionLock: async (_workspaceId: string, action: (tx: unknown) => Promise<void>) => action({
     zernioConnection: { findUnique: mocks.current },
-    instagramAccount: { findUnique: mocks.existing, create: mocks.create, updateMany: mocks.updateMany },
+    socialAccount: { findUnique: mocks.existing, create: mocks.create, updateMany: mocks.updateMany },
   }),
 }));
 import { POST } from '@/app/api/zernio/accounts/route';

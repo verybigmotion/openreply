@@ -118,6 +118,8 @@ Copy `.env.example` to `.env` for local work, or set these in Vercel and Railway
 | `INSTAGRAM_APP_ID` | From the Meta app, see Step 6. |
 | `INSTAGRAM_APP_SECRET` | From the Meta app. |
 | `FACEBOOK_APP_SECRET` | From the Meta app. |
+| `FACEBOOK_APP_ID` | The Meta app ID (App settings, Basic). Needed only for Facebook Pages. |
+| `FACEBOOK_LOGIN_CONFIG_ID` | Optional. The configuration ID when the app uses Facebook Login for Business. Unset, the requested permissions are sent as a scope instead. |
 | `WEBHOOK_VERIFY_TOKEN` | Any random string. You paste the same value into Meta's webhook config. |
 
 `ENCRYPTION_KEY` must be exactly 64 hex characters or the app throws on boot.
@@ -248,6 +250,18 @@ The fix for your own accounts is the same two-part dance as Step 6, once per acc
 You do not have to do anything here; OpenReply handles it. It is worth understanding because it is invisible when it goes wrong.
 
 Meta's `/me` returns two IDs. The `id` field is app-scoped. The `user_id` field is the Instagram professional account ID. Webhooks put `user_id` in `entry.id`, and the messaging API keys off `user_id` too. OpenReply stores `user_id`, so a fresh connection matches correctly. If you upgraded from a very old build and an account was stored with the wrong ID, disconnect and reconnect it once.
+
+### Facebook Pages
+
+Campaigns run on Facebook Pages the same way as on Instagram, except the follow gate: Messenger cannot tell whether someone follows a Page, so the option is hidden for Page campaigns. A personal profile, even in professional mode, cannot be connected; only a Page can.
+
+1. In the same Meta app, add the Facebook Login for Business product (or Facebook Login) and the Messenger product. Set `FACEBOOK_APP_ID`.
+2. Add `https://your-app.vercel.app/api/facebook/callback` to the valid OAuth redirect URIs.
+3. If you use Facebook Login for Business, create a configuration with the permissions `pages_show_list`, `pages_messaging`, `pages_read_engagement`, `pages_read_user_content`, `read_insights`, `pages_manage_metadata`, `pages_manage_engagement` and `business_management`, then set `FACEBOOK_LOGIN_CONFIG_ID`.
+4. Under Webhooks, select the Page object, use the same callback URL and verify token as Step 8, and subscribe to `feed`, `messages`, `messaging_postbacks` and `message_reads`. OpenReply subscribes each Page to the app when it is connected.
+5. Under App roles, Roles, add the personal Facebook profile that administers the Page as a Tester. They accept the invite at developers.facebook.com. Like Instagram testers, this replaces App Review for Pages you work with directly.
+
+The Page admin then signs in with **Continue with Facebook**, or an existing workspace owner clicks **Connect Facebook Page** in Settings. Meta asks which Pages to share; every shared Page is connected. Page tokens obtained this way do not expire, so the token refresh job does not refresh them. It checks each Page token instead: when the admin revokes access, the Page shows as revoked in Settings and Operators get an error until the Page is reconnected.
 
 ## Test it end to end
 
