@@ -994,6 +994,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             onTabChange={setPreviewTab}
             username={username}
             avatarUrl={avatarUrl}
+            platform={selectedAccount?.platform}
             postThumb={postThumb}
             caption={postCaption}
             sampleComment={keywords[0] ?? ""}

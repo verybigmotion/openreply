@@ -259,7 +259,7 @@ Campaigns run on Facebook Pages the same way as on Instagram, except the follow 
 2. Add `https://your-app.vercel.app/api/facebook/callback` to the valid OAuth redirect URIs.
 3. If you use Facebook Login for Business, create a configuration with the permissions `pages_show_list`, `pages_messaging`, `pages_read_engagement`, `pages_read_user_content`, `read_insights`, `pages_manage_metadata`, `pages_manage_engagement` and `business_management`, then set `FACEBOOK_LOGIN_CONFIG_ID`.
 4. Under Webhooks, select the Page object, use the same callback URL and verify token as Step 8, and subscribe to `feed`, `messages`, `messaging_postbacks` and `message_reads`. OpenReply subscribes each Page to the app when it is connected.
-5. Under App roles, Roles, add the personal Facebook profile that administers the Page as a Tester. They accept the invite at developers.facebook.com. Like Instagram testers, this replaces App Review for Pages you work with directly.
+5. Under App roles, Roles, add the personal Facebook profile that administers the Page as a Tester. They accept the invite in Facebook itself, under Settings & privacy, Settings, Your activity, Apps and websites; no Meta developer account is needed. Like Instagram testers, this replaces App Review for Pages you work with directly.
 
 The Page admin then signs in with **Continue with Facebook**, or an existing workspace owner clicks **Connect Facebook Page** in Settings. Meta asks which Pages to share; every shared Page is connected. Page tokens obtained this way do not expire, so the token refresh job does not refresh them. It checks each Page token instead: when the admin revokes access, the Page shows as revoked in Settings and Operators get an error until the Page is reconnected.
 
