@@ -5,6 +5,7 @@ import { getBaseUrl } from "@/lib/env";
 import { readFacebookPages, type FacebookAuthorization } from "@/lib/facebook-login";
 import type { FacebookStatus } from "@/lib/facebook-status";
 import { verifyOAuthState } from "@/lib/meta/oauth";
+import { isOperatorUser } from "@/lib/operator";
 import {
   saveSocialAccounts,
   signInWithSocialAccounts,
@@ -87,7 +88,8 @@ export async function GET(request: NextRequest) {
   const membership = await prisma.workspaceMember.findFirst({
     where: { workspaceId: state.workspaceId, userId: session.user.id },
   });
-  if (!membership || !canManageWorkspace(membership.role)) {
+  const allowed = membership ? canManageWorkspace(membership.role) : await isOperatorUser(session.user.id);
+  if (!allowed) {
     return NextResponse.redirect(`${baseUrl}/settings?facebook=forbidden`);
   }
 

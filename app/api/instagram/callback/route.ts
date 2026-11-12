@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { getBaseUrl } from "@/lib/env";
 import { readInstagramAccount, signInWithInstagram } from "@/lib/instagram-login";
 import { verifyOAuthState } from "@/lib/meta/oauth";
+import { isOperatorUser } from "@/lib/operator";
 import { saveSocialAccount } from "@/lib/social-login";
 import { canManageWorkspace } from "@/lib/workspace-access";
 
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  if (!membership || !canManageWorkspace(membership.role)) {
+  const allowed = membership ? canManageWorkspace(membership.role) : await isOperatorUser(session.user.id);
+  if (!allowed) {
     return NextResponse.redirect(`${baseUrl}/settings?instagram=forbidden`);
   }
 
