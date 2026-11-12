@@ -1,7 +1,6 @@
 "use client";
 
 import { useI18n } from "@/lib/i18n/provider";
-import type { SocialPlatform } from "@/lib/social-platform";
 
 
 /* eslint-disable @next/next/no-img-element */
@@ -44,11 +43,9 @@ interface CampaignPreviewProps {
   followUpEnabled: boolean;
   followUpMessage: string;
   followUpDelayMinutes?: number;
-  platform?: SocialPlatform;
 }
 
 const SAMPLE_USER = "username";
-const MESSENGER_BLUE = "bg-[#0866FF]";
 
 /* ----------------------------- icons ----------------------------- */
 
@@ -94,43 +91,7 @@ const Ico = {
   link: (c = "") => (
     <svg viewBox="0 0 24 24" className={c} {...S}><path d="M10.5 13.5a4 4 0 005.7 0l2.3-2.3a4 4 0 00-5.7-5.7L11.5 6.8" /><path d="M13.5 10.5a4 4 0 00-5.7 0l-2.3 2.3a4 4 0 005.7 5.7l1.3-1.3" /></svg>
   ),
-  arrowLeft: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><path d="M20 12H4M10 6l-6 6 6 6" /></svg>
-  ),
-  thumbUp: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><path d="M7 10v11H3V10zM7 10l4-7a2.5 2.5 0 012.5 2.5V9h5.6a2 2 0 012 2.3l-1.3 8A2 2 0 0117.8 21H7" /></svg>
-  ),
-  thumbDown: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><path d="M7 14V3H3v11zM7 14l4 7a2.5 2.5 0 002.5-2.5V15h5.6a2 2 0 002-2.3l-1.3-8A2 2 0 0017.8 3H7" /></svg>
-  ),
-  forward: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><path d="M14 5l7 7-7 7v-4c-6 0-9 2-11 5 1-6 4-10 11-11z" /></svg>
-  ),
-  globe: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18" /></svg>
-  ),
-  close: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><path d="M6 6l12 12M18 6L6 18" /></svg>
-  ),
-  image: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-9 9" /></svg>
-  ),
-  mic: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v3" /></svg>
-  ),
-  smile: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><circle cx="12" cy="12" r="9" /><path d="M8.5 14a4 4 0 007 0M9 9.5h.01M15 9.5h.01" /></svg>
-  ),
 };
-
-function FacebookReactions() {
-  return (
-    <span className="flex">
-      <span className="grid h-4 w-4 place-items-center rounded-full bg-[#0866FF] ring-2 ring-[#242526]">{Ico.thumbUp("h-2.5 w-2.5")}</span>
-      <span className="-ml-1 grid h-4 w-4 place-items-center rounded-full bg-[#F33E58] text-[8px] ring-2 ring-[#242526]">♥</span>
-    </span>
-  );
-}
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -348,136 +309,9 @@ function CommentsScreen({
   );
 }
 
-function FacebookPostScreen({
-  username,
-  avatarUrl,
-  postThumb,
-  caption,
-}: {
-  username: string;
-  avatarUrl: string | null;
-  postThumb: string | null;
-  caption: string;
-}) {
-  const { t } = useI18n();
-  return (
-    <div className="flex h-full flex-col bg-[#242526] text-white">
-      <StatusBar />
-      <div className="flex items-start gap-2 px-3 pb-2 pt-3">
-        <Avatar url={avatarUrl} size={36} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">
-            {username} · <span className="text-[#4599FF]">{t("Follow")}</span>
-          </p>
-          <p className="flex items-center gap-1 text-[11px] text-zinc-400">
-            {t("Now")} · {Ico.globe("h-3 w-3")}
-          </p>
-        </div>
-        <span className="tracking-widest text-zinc-300">···</span>
-        {Ico.close("h-5 w-5 text-zinc-300")}
-      </div>
-      <p className="line-clamp-2 shrink-0 px-3 pb-2 text-sm text-zinc-100">
-        {caption || t("Applications close rly soon!!")}
-      </p>
-      <div className="min-h-0 flex-1 bg-zinc-800">
-        {postThumb && (
-          <img src={postThumb} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-        )}
-      </div>
-      <div className="flex shrink-0 items-center gap-5 px-3 py-3 text-zinc-200">
-        <span className="flex items-center gap-1.5">{Ico.thumbUp("h-5 w-5")}<span className="text-sm">59</span></span>
-        <span className="flex items-center gap-1.5">{Ico.comment("h-5 w-5")}<span className="text-sm">1</span></span>
-        <span className="flex items-center gap-1.5">{Ico.forward("h-5 w-5")}</span>
-        <span className="ml-auto"><FacebookReactions /></span>
-      </div>
-    </div>
-  );
-}
-
-function FacebookCommentsScreen({
-  username,
-  avatarUrl,
-  sampleComment,
-  publicReplyEnabled,
-  publicReplyMessage,
-}: {
-  username: string;
-  avatarUrl: string | null;
-  sampleComment: string;
-  publicReplyEnabled: boolean;
-  publicReplyMessage: string;
-}) {
-  const { t } = useI18n();
-  const reactions = ["❤️", "🙌", "🔥", "👏", "😢", "😍", "😮", "😂"];
-  const actions = (
-    <div className="mt-1 flex items-center text-xs text-zinc-400">
-      <span className="font-semibold">{t("Reply")}</span>
-      <span className="ml-auto flex gap-3">
-        {Ico.thumbUp("h-3.5 w-3.5")}
-        {Ico.thumbDown("h-3.5 w-3.5")}
-      </span>
-    </div>
-  );
-  return (
-    <div className="flex h-full flex-col text-white">
-      <StatusBar />
-      <div className="h-20 bg-zinc-800/70" />
-      <div className="flex flex-1 flex-col rounded-t-2xl bg-[#242526] px-4 pt-3">
-        <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-zinc-600" />
-        <div className="flex items-center gap-1.5 text-sm">
-          <FacebookReactions />
-          <span>59</span>
-          <span className="ml-auto">{t("{count} shares", { count: 0 })}</span>
-        </div>
-
-        <div className="mt-5 flex gap-3">
-          <Avatar url={null} size={32} />
-          <div className="flex-1">
-            <p className="text-xs">
-              <span className="font-semibold">{SAMPLE_USER}</span>{" "}
-              <span className="text-zinc-400">· {t("Now")}</span>
-            </p>
-            <p className="text-sm">{sampleComment || "yc"}</p>
-            {actions}
-          </div>
-        </div>
-
-        {publicReplyEnabled && (
-          <div className="mt-4 flex gap-3 pl-10">
-            <Avatar url={avatarUrl} size={28} />
-            <div className="flex-1">
-              <p className="text-xs">
-                <span className="font-semibold">{username}</span>{" "}
-                <span className="text-zinc-400">· {t("Now")}</span>
-              </p>
-              <p className="text-sm">
-                <span className="text-[#4599FF]">{SAMPLE_USER}</span>{" "}
-                {publicReplyMessage || t("Sent you a DM! 📩")}
-              </p>
-              {actions}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-auto">
-          <div className="flex items-center justify-between border-t border-zinc-700 px-1 py-2 text-lg">
-            {reactions.map((r) => (
-              <span key={r}>{r}</span>
-            ))}
-          </div>
-          <div className="mb-3 rounded-full bg-[#3A3B3C] px-4 py-2 text-xs text-zinc-400">
-            {t("Write a comment…")}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function DmScreen({
   username,
   avatarUrl,
-  messenger = false,
   openingDmEnabled,
   openingDmMessage,
   openingDmButtonLabel,
@@ -514,48 +348,25 @@ function DmScreen({
   followUpDelayMinutes?: number;
   // Present on the keyword-trigger thread: the DM the user sends to start it.
   inboundMessage?: string;
-  messenger?: boolean;
 }) {
   const { t } = useI18n();
-  const outgoing = messenger ? MESSENGER_BLUE : "bg-accent";
-  const incoming = messenger ? "bg-[#333334]" : "bg-zinc-800";
-  const cardButton = messenger ? "bg-[#48484A]" : "bg-zinc-700";
   return (
-    <div className={`flex h-full flex-col text-white ${messenger ? "bg-[#242526]" : ""}`}>
+    <div className="flex h-full flex-col text-white">
       <StatusBar />
-      {messenger ? (
-        <div className="flex items-center gap-2 px-3 py-2">
-          <span className="w-5 text-[#4599FF]">{Ico.arrowLeft("h-5 w-5")}</span>
-          <Avatar url={avatarUrl} size={32} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{username}</p>
-            <p className="text-[11px] text-zinc-400">{t("Business chat")}</p>
-          </div>
-          <span className={`rounded-full ${MESSENGER_BLUE} px-2.5 py-1 text-xs font-bold`}>✓</span>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 px-3 py-2">
-          <span className="w-4">{Ico.back("h-5 w-5")}</span>
-          <Avatar url={avatarUrl} size={30} />
-          <span className="text-sm font-semibold">{username}</span>
-          <span className="ml-auto flex items-center gap-3">
-            {Ico.phone("h-5 w-5")}
-            {Ico.video("h-5 w-5")}
-          </span>
-        </div>
-      )}
+      <div className="flex items-center gap-2 px-3 py-2">
+        <span className="w-4">{Ico.back("h-5 w-5")}</span>
+        <Avatar url={avatarUrl} size={30} />
+        <span className="text-sm font-semibold">{username}</span>
+        <span className="ml-auto flex items-center gap-3">
+          {Ico.phone("h-5 w-5")}
+          {Ico.video("h-5 w-5")}
+        </span>
+      </div>
 
-      <div className={`flex-1 space-y-3 px-3 py-4 ${messenger ? "flex flex-col justify-end overflow-hidden" : ""}`}>
-        {messenger && (
-          <div className="flex flex-col items-center gap-1 pb-2">
-            <Avatar url={avatarUrl} size={64} />
-            <p className="text-sm font-semibold">{username}</p>
-            <p className="text-[11px] text-zinc-400">{t("Now")}</p>
-          </div>
-        )}
+      <div className="flex-1 space-y-3 px-3 py-4">
         {inboundMessage !== undefined && (
           <div className="flex justify-end">
-            <div className={`max-w-[80%] rounded-2xl rounded-br-md ${outgoing} px-3 py-2 text-sm`}>
+            <div className="max-w-[80%] rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
               {inboundMessage || t("their message")}
             </div>
           </div>
@@ -564,15 +375,15 @@ function DmScreen({
           <>
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className={`max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md ${incoming}`}>
+              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
                 <p className="whitespace-pre-wrap px-3 py-2 text-sm">{openingDmMessage || t("Your opening message…")}</p>
-                <div className={`mx-1.5 mb-1.5 rounded-xl ${cardButton} px-4 py-1.5 text-center text-sm font-medium text-white`}>
+                <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
                   {openingDmButtonLabel || t("Button label")}
                 </div>
               </div>
             </div>
             <div className="flex justify-end">
-              <div className={`rounded-2xl rounded-br-md ${outgoing} px-3 py-2 text-sm`}>
+              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
                 {openingDmButtonLabel || t("Button label")}
               </div>
             </div>
@@ -582,18 +393,18 @@ function DmScreen({
           <>
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className={`max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md ${incoming}`}>
+              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
                 <p className="whitespace-pre-wrap px-3 py-2 text-sm">
                   {followPromptMessage ||
                     "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"}
                 </p>
-                <div className={`mx-1.5 mb-1.5 rounded-xl ${cardButton} px-4 py-1.5 text-center text-sm font-medium text-white`}>
+                <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
                   {followPromptButtonLabel || "i'm following"}
                 </div>
               </div>
             </div>
             <div className="flex justify-end">
-              <div className={`rounded-2xl rounded-br-md ${outgoing} px-3 py-2 text-sm`}>
+              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
                 {followPromptButtonLabel || "i'm following"}
               </div>
             </div>
@@ -609,7 +420,7 @@ function DmScreen({
           return (
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className={`max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md ${incoming}`}>
+              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
                 {(!showCard || bodyText) && (
                   <p className="whitespace-pre-wrap px-3 py-2 text-sm">
                     {!revealMessage
@@ -621,11 +432,11 @@ function DmScreen({
                 )}
                 {showCard && (
                   <>
-                    <div className={`mx-1.5 mb-1.5 rounded-xl ${cardButton} px-4 py-1.5 text-center text-sm font-medium text-white`}>
+                    <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
                       {linkButtonLabel || "Open link"}
                     </div>
                     {hasSecondLink && (
-                      <div className={`mx-1.5 mb-1.5 rounded-xl ${cardButton} px-4 py-1.5 text-center text-sm font-medium text-white`}>
+                      <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
                         {secondLinkButtonLabel || "Open link"}
                       </div>
                     )}
@@ -644,7 +455,7 @@ function DmScreen({
             )}
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className={`max-w-[80%] rounded-2xl rounded-bl-md ${incoming} px-3 py-2`}>
+              <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-zinc-800 px-3 py-2">
                 <p className="whitespace-pre-wrap text-sm">
                   {followUpMessage.trim()
                     ? followUpMessage.replace(/\{username\}/g, SAMPLE_USER)
@@ -656,25 +467,12 @@ function DmScreen({
         )}
       </div>
 
-      {messenger ? (
-        <div className="flex items-center gap-3 px-3 py-3 text-[#0866FF]">
-          {Ico.camera("h-5 w-5 shrink-0")}
-          {Ico.image("h-5 w-5 shrink-0")}
-          {Ico.mic("h-5 w-5 shrink-0")}
-          <div className="flex flex-1 items-center rounded-full bg-[#3A3B3C] px-3 py-2 text-xs text-zinc-400">
-            <span className="flex-1">{t("Message…")}</span>
-            {Ico.smile("h-4 w-4 text-[#0866FF]")}
-          </div>
-          {Ico.thumbUp("h-5 w-5 shrink-0")}
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 px-3 py-3">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-white">
-            {Ico.camera("h-4 w-4")}
-          </span>
-          <div className="flex-1 rounded-full bg-zinc-800 px-3 py-2 text-xs text-zinc-500">{t("Message…")}</div>
-        </div>
-      )}
+      <div className="flex items-center gap-2 px-3 py-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-white">
+          {Ico.camera("h-4 w-4")}
+        </span>
+        <div className="flex-1 rounded-full bg-zinc-800 px-3 py-2 text-xs text-zinc-500">{t("Message…")}</div>
+      </div>
     </div>
   );
 }
@@ -697,15 +495,12 @@ export default function CampaignPreview(props: CampaignPreviewProps) {
   // to the comment thread rather than rendering an empty phone.
   const activeTab: PreviewTab =
     tab === "dmTrigger" && !props.dmTriggerEnabled ? "dm" : tab;
-  const messenger = props.platform === "FACEBOOK";
-  const Post = messenger ? FacebookPostScreen : PostScreen;
-  const Comments = messenger ? FacebookCommentsScreen : CommentsScreen;
 
   return (
     <div className="flex flex-col items-center gap-5">
       <Phone>
         {activeTab === "post" && (
-          <Post
+          <PostScreen
             username={props.username}
             avatarUrl={props.avatarUrl}
             postThumb={props.postThumb}
@@ -713,7 +508,7 @@ export default function CampaignPreview(props: CampaignPreviewProps) {
           />
         )}
         {activeTab === "comments" && (
-          <Comments
+          <CommentsScreen
             username={props.username}
             avatarUrl={props.avatarUrl}
             sampleComment={props.sampleComment}
@@ -725,7 +520,6 @@ export default function CampaignPreview(props: CampaignPreviewProps) {
           <DmScreen
             username={props.username}
             avatarUrl={props.avatarUrl}
-            messenger={messenger}
             openingDmEnabled={props.openingDmEnabled}
             openingDmMessage={props.openingDmMessage}
             openingDmButtonLabel={props.openingDmButtonLabel}
@@ -747,7 +541,6 @@ export default function CampaignPreview(props: CampaignPreviewProps) {
           <DmScreen
             username={props.username}
             avatarUrl={props.avatarUrl}
-            messenger={messenger}
             // The user opened the conversation, so no opening DM is sent.
             openingDmEnabled={false}
             openingDmMessage=""

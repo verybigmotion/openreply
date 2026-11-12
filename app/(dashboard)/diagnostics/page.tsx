@@ -230,7 +230,7 @@ export default function DiagnosticsPage() {
               {data.webhookFailures.map((event) => (
                 <div key={event.id} className="border-b border-border pb-3 last:border-0">
                   <p className="text-sm font-semibold text-foreground">
-                    {event.object ?? t("Meta webhook")}
+                    {event.object ?? t("Instagram webhook")}
                   </p>
                   <p className="mt-1 text-xs text-error">
                     {event.errorMessage ?? t("Unknown error")}

@@ -347,7 +347,6 @@ export default function CampaignDetailPage() {
             onTabChange={setPreviewTab}
             username={socialAccountDisplayName(campaign.socialAccount)}
             avatarUrl={avatarUrl}
-            platform={campaign.socialAccount.platform}
             postThumb={postThumb}
             caption=""
             sampleComment={campaign.matchAnyWord ? t("nice!") : campaign.keywords[0] ?? "LINK"}
