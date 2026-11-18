@@ -333,7 +333,7 @@ model WebhookEvent {
 
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
-  @@index([workspaceId])
+  @@index([workspaceId, createdAt])
   @@index([status])
 }
 

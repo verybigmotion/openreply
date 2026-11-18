@@ -35,14 +35,19 @@ async function loadOverview() {
         socialAccounts: { select: { id: true, username: true, name: true, platform: true, provider: true, tokenExpiresAt: true, tokenRevokedAt: true, webhookSubscribed: true } },
       },
     }),
-    prisma.webhookEvent.groupBy({ by: ["workspaceId"], _max: { createdAt: true } }),
+    prisma.$queryRaw<Array<{ workspaceId: string; createdAt: Date }>>`
+      SELECT w.id AS "workspaceId", e."createdAt"
+      FROM "Workspace" w
+      CROSS JOIN LATERAL (
+        SELECT "createdAt" FROM "WebhookEvent" WHERE "workspaceId" = w.id ORDER BY "createdAt" DESC LIMIT 1
+      ) e`,
     prisma.dmLog.groupBy({ by: ["workspaceId"], where: { status: "FAILED", updatedAt: { gte: since } }, _count: { _all: true } }),
     prisma.dmLog.groupBy({ by: ["workspaceId"], where: { status: "SENT", dmSentAt: { gte: since } }, _count: { _all: true } }),
-    prisma.operationalEvent.groupBy({ by: ["workspaceId"], where: { level: "ERROR", resolvedAt: null }, _count: { _all: true } }),
+    prisma.operationalEvent.groupBy({ by: ["workspaceId"], where: { level: "ERROR", resolvedAt: null, createdAt: { gte: since } }, _count: { _all: true } }),
     getWorkerHealth().catch(() => ({ healthy: false, heartbeat: null, ageMs: null })),
   ]);
 
-  const lastWebhookByWorkspace = new Map(lastWebhooks.map((row) => [row.workspaceId, row._max.createdAt]));
+  const lastWebhookByWorkspace = new Map(lastWebhooks.map((row) => [row.workspaceId, row.createdAt]));
   const failedByWorkspace = new Map(failedDms.map((row) => [row.workspaceId, row._count._all]));
   const sentByWorkspace = new Map(sentDms.map((row) => [row.workspaceId, row._count._all]));
   const errorsByWorkspace = new Map(unresolvedErrors.map((row) => [row.workspaceId, row._count._all]));
@@ -78,7 +83,7 @@ export default async function OperatorPage() {
               <th className="py-2 pr-4 font-medium">Last webhook</th>
               <th className="py-2 pr-4 font-medium">Sent 24h</th>
               <th className="py-2 pr-4 font-medium">Failed 24h</th>
-              <th className="py-2 pr-4 font-medium">Open errors</th>
+              <th className="py-2 pr-4 font-medium">Errors 24h</th>
               <th className="py-2 font-medium"></th>
             </tr>
           </thead>

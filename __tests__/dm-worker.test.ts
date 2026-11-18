@@ -34,7 +34,6 @@ const {
       create: vi.fn(),
     },
     socialAccount: {
-      findUnique: vi.fn(),
       findMany: vi.fn(),
     },
     operationalEvent: {
@@ -264,9 +263,6 @@ beforeEach(() => {
   mockPrisma.dmLog.upsert.mockResolvedValue({});
   mockPrisma.dmLog.update.mockResolvedValue({});
   mockFindAwaitedCampaignId.mockResolvedValue("auto_789");
-  mockPrisma.socialAccount.findUnique.mockResolvedValue({
-    workspaceId: "workspace_123",
-  });
   mockPrisma.operationalEvent.create.mockResolvedValue({});
   mockDecryptToken.mockReturnValue("decrypted_token");
   mockMatchKeywords.mockReturnValue({ matched: true, matchedKeyword: "LINK" });

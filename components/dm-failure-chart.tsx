@@ -62,11 +62,30 @@ function HoverBreakdown({ title, counts, children, className }: { title: string;
   );
 }
 
+type SortColumn = "username" | "rate" | "total" | "failed";
+
 export default function DmFailureChart({ days, accounts }: { days: FailureDay[]; accounts: FailureAccount[] }) {
   const [showAccounts, setShowAccounts] = useState(false);
+  const [sort, setSort] = useState<{ column: SortColumn; descending: boolean }>({ column: "failed", descending: true });
   const byAccount = accounts
-    .map((a) => ({ ...a, failed: countFailed(a) }))
-    .sort((a, b) => b.failed - a.failed);
+    .map((a) => {
+      const failed = countFailed(a);
+      return { ...a, failed, rate: share(failed, a.total) };
+    })
+    .sort((a, b) => {
+      const order = sort.column === "username" ? a.username.localeCompare(b.username) : a[sort.column] - b[sort.column];
+      return sort.descending ? -order : order;
+    });
+  const sortBy = (column: SortColumn) =>
+    setSort((current) => ({ column, descending: current.column === column ? !current.descending : column !== "username" }));
+  const sortHeader = (column: SortColumn, label: string, className: string) => (
+    <th className={className} aria-sort={sort.column === column ? (sort.descending ? "descending" : "ascending") : undefined}>
+      <button type="button" onClick={() => sortBy(column)} className="font-medium uppercase tracking-wide hover:text-foreground">
+        {label}
+        {sort.column === column && (sort.descending ? " ↓" : " ↑")}
+      </button>
+    </th>
+  );
   const peakDailyRate = Math.max(0, ...accounts.flatMap((a) => a.days.map((d) => share(countFailed(d), d.total))));
   const stripMax = Math.max(10, Math.ceil(peakDailyRate / 10) * 10);
   const total = days.reduce((sum, d) => sum + d.total, 0);
@@ -137,10 +156,10 @@ export default function DmFailureChart({ days, accounts }: { days: FailureDay[];
         <table className="mt-6 w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-zinc-500">
-              <th className="py-2 pr-4 font-medium">Creator</th>
-              <th className="px-3 py-2 text-right font-medium">Failure rate</th>
-              <th className="px-3 py-2 text-right font-medium">DMs</th>
-              <th className="px-3 py-2 text-right font-medium">Failed</th>
+              {sortHeader("username", "Creator", "py-2 pr-4")}
+              {sortHeader("rate", "Failure rate", "px-3 py-2 text-right")}
+              {sortHeader("total", "DMs", "px-3 py-2 text-right")}
+              {sortHeader("failed", "Failed", "px-3 py-2 text-right")}
               <th className="py-2 pl-6 font-medium">Failure rate by day, 0–{stripMax}%</th>
             </tr>
           </thead>

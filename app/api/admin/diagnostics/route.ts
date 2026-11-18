@@ -6,6 +6,8 @@ import { getWorkerAlerts, getWorkerHealth } from "@/lib/ops/worker-health";
 
 export const runtime = "nodejs";
 
+const OPERATIONAL_EVENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 export async function GET() {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) {
@@ -87,6 +89,7 @@ export async function GET() {
     prisma.operationalEvent.findMany({
       where: {
         OR: [{ workspaceId }, { workspaceId: null }],
+        createdAt: { gte: new Date(Date.now() - OPERATIONAL_EVENT_WINDOW_MS) },
       },
       orderBy: { createdAt: "desc" },
       take: 20,

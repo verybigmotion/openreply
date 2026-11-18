@@ -1437,6 +1437,9 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
   }
 }
 
+const PROCESS_ERROR_RECORD_INTERVAL_MS = 60_000;
+let lastProcessErrorRecordedAt = 0;
+
 async function recordWorkerFailure(
   job: Job<DmQueueJob> | undefined,
   error: Error
@@ -1445,28 +1448,6 @@ async function recordWorkerFailure(
     const instagramAccountId = job?.data.instagramAccountId;
     const commentId =
       job && "commentId" in job.data ? job.data.commentId : null;
-    const account = instagramAccountId
-      ? await prisma.socialAccount.findUnique({
-          where: { externalId: instagramAccountId },
-          select: { workspaceId: true },
-        })
-      : null;
-
-    await prisma.operationalEvent.create({
-      data: {
-        workspaceId: account?.workspaceId ?? null,
-        source: "WORKER",
-        level: "ERROR",
-        message: `DM worker job ${job?.id ?? "unknown"} failed: ${error.message}`,
-        payload: {
-          jobId: job?.id ?? null,
-          attemptsMade: job?.attemptsMade ?? null,
-          instagramAccountId: instagramAccountId ?? null,
-          commentId,
-        },
-      },
-    });
-
     await recordWorkerAlert({
       level: "error",
       message: error.message,
@@ -1527,6 +1508,8 @@ export function createDMWorker(queueName: string, concurrency: number): Worker<D
 
   worker.on("error", (err) => {
     console.error("[DM Worker] Worker error:", err.message);
+    if (Date.now() - lastProcessErrorRecordedAt < PROCESS_ERROR_RECORD_INTERVAL_MS) return;
+    lastProcessErrorRecordedAt = Date.now();
     void prisma.operationalEvent
       .create({
         data: {
