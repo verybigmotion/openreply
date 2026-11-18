@@ -67,16 +67,8 @@ vi.mock("@/lib/db/client", () => ({
   prisma: mockPrisma,
 }));
 
-vi.mock("@/lib/meta/client", () => ({
-  sendPrivateReply: mockSendPrivateReply,
-  sendPrivateReplyWithLinkButton: mockSendPrivateReplyWithLinkButton,
-  sendPrivateReplyWithButton: mockSendPrivateReplyWithButton,
-  getUserFollowStatus: mockGetUserFollowStatus,
-  sendDirectMessageWithButton: mockSendDirectMessageWithButton,
-  sendDirectMessage: mockSendDirectMessage,
-  sendDirectMessageWithLinkButton: mockSendDirectMessageWithLinkButton,
-  sendCommentReply: vi.fn(),
-  MetaApiError: class MetaApiError extends Error {
+vi.mock("@/lib/meta/client", () => {
+  class MetaApiError extends Error {
     code: number;
     constructor(
       code: number,
@@ -88,14 +80,32 @@ vi.mock("@/lib/meta/client", () => ({
       this.code = code;
       this.name = "MetaApiError";
     }
-  },
-  TokenExpiredError: class TokenExpiredError extends Error {
-    name = "TokenExpiredError";
-  },
-  RateLimitError: class RateLimitError extends Error {
-    name = "RateLimitError";
-  },
-}));
+  }
+  class PermissionError extends MetaApiError {
+    constructor(message: string, fbTraceId?: string) {
+      super(100, undefined, fbTraceId, message);
+      this.name = "PermissionError";
+    }
+  }
+  return {
+    sendPrivateReply: mockSendPrivateReply,
+    sendPrivateReplyWithLinkButton: mockSendPrivateReplyWithLinkButton,
+    sendPrivateReplyWithButton: mockSendPrivateReplyWithButton,
+    getUserFollowStatus: mockGetUserFollowStatus,
+    sendDirectMessageWithButton: mockSendDirectMessageWithButton,
+    sendDirectMessage: mockSendDirectMessage,
+    sendDirectMessageWithLinkButton: mockSendDirectMessageWithLinkButton,
+    sendCommentReply: vi.fn(),
+    MetaApiError,
+    PermissionError,
+    TokenExpiredError: class TokenExpiredError extends Error {
+      name = "TokenExpiredError";
+    },
+    RateLimitError: class RateLimitError extends Error {
+      name = "RateLimitError";
+    },
+  };
+});
 
 vi.mock("@/lib/meta/oauth", () => ({
   decryptToken: mockDecryptToken,
@@ -153,6 +163,7 @@ vi.mock("bullmq", () => {
 });
 
 import { createDMWorker, startDMWorkers } from "../lib/queue/dm-worker";
+import { isPermanentDMFailure } from "../lib/queue/permanent-dm-failure";
 
 const usagePeriodStart = new Date("2026-05-01T00:00:00.000Z");
 
@@ -636,6 +647,39 @@ describe("DM Worker — Full Pipeline", () => {
     });
   });
 
+  it("does not let BullMQ retry a DM that Instagram refused for good", async () => {
+    const { PermissionError } = await import("@/lib/meta/client");
+    mockSendPrivateReply.mockRejectedValue(
+      new PermissionError("The comment is invalid for a private reply", "trace")
+    );
+
+    const processor = getProcessor();
+
+    await expect(processor(createMockJob())).rejects.toMatchObject({
+      name: "UnrecoverableError",
+    });
+    const failedLog = mockPrisma.dmLog.update.mock.calls
+      .map(([args]) => args.data)
+      .find((data) => data.status === "FAILED");
+    expect(isPermanentDMFailure(failedLog)).toBe(true);
+  });
+
+  it("does not retry the DM of a comment Instagram already refused for good", async () => {
+    mockPrisma.dmLog.findUnique.mockResolvedValue({
+      status: "FAILED",
+      errorMessage: "PermissionError 100: The comment is invalid for a private reply",
+      publicReplySentAt: new Date(),
+      dmDeliveryUnconfirmed: false,
+      publicReplyDeliveryUnconfirmed: false,
+    });
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).not.toHaveBeenCalled();
+    expect(mockSendPrivateReplyWithLinkButton).not.toHaveBeenCalled();
+  });
+
   it("should handle missing access token", async () => {
     mockPrisma.automation.findMany.mockResolvedValue([
       {
@@ -1107,6 +1151,55 @@ describe("DM Worker — one private reply per comment", () => {
     expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "SENT" }),
+      })
+    );
+  });
+
+  it("keeps a temporary failure of the text fallback retryable instead of reporting the template rejection", async () => {
+    const { PermissionError } = await import("@/lib/meta/client");
+    mockPrisma.automation.findMany.mockResolvedValue([
+      {
+        ...mockAutomation,
+        trackedLinks: [{ slug: "abc123", label: null, destinationUrl: "https://example.com" }],
+      },
+    ]);
+    mockSendPrivateReplyWithLinkButton.mockRejectedValue(
+      new PermissionError("Unsupported message template", "trace")
+    );
+    mockSendPrivateReply.mockRejectedValue(new Error("Service temporarily unavailable"));
+
+    const processor = getProcessor();
+    await expect(processor(createMockJob())).rejects.toThrow("Service temporarily unavailable");
+
+    const failedLog = mockPrisma.dmLog.update.mock.calls
+      .map(([args]) => args.data)
+      .find((data) => data.status === "FAILED");
+    expect(isPermanentDMFailure(failedLog)).toBe(false);
+  });
+
+  it("still reports the template rejection when the text fallback finds the reply already used", async () => {
+    const { PermissionError } = await import("@/lib/meta/client");
+    mockPrisma.automation.findMany.mockResolvedValue([
+      {
+        ...mockAutomation,
+        trackedLinks: [{ slug: "abc123", label: null, destinationUrl: "https://example.com" }],
+      },
+    ]);
+    mockSendPrivateReplyWithLinkButton.mockRejectedValue(
+      new PermissionError("Unsupported message template", "trace")
+    );
+    mockSendPrivateReply.mockRejectedValue(
+      new PermissionError("The comment is invalid for a private reply", "trace")
+    );
+
+    const processor = getProcessor();
+    await expect(processor(createMockJob())).rejects.toMatchObject({ name: "UnrecoverableError" });
+
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          errorMessage: "PermissionError 100: Unsupported message template",
+        }),
       })
     );
   });

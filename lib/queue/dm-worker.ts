@@ -15,8 +15,10 @@ import {
   type ProcessFollowUpJob,
 } from "./client";
 import { prisma } from "@/lib/db/client";
+import { isPermanentDMFailure } from "./permanent-dm-failure";
 import {
   MetaApiError,
+  PermissionError,
   RateLimitError,
   TokenExpiredError,
   getUserFollowStatus,
@@ -213,8 +215,8 @@ async function sendRevealDirectMessage({
           bodyText
         ),
       });
-    } catch {
-      throw buttonError;
+    } catch (fallbackError) {
+      throw fallbackError instanceof PermissionError ? buttonError : fallbackError;
     }
   }
 }
@@ -293,7 +295,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
 
     const alreadyDmd = existingLog?.status === "SENT";
     const alreadyPublicReplied = Boolean(existingLog?.publicReplySentAt);
-    const needsDm = !alreadyDmd && !existingLog?.dmDeliveryUnconfirmed;
+    const needsDm =
+      !alreadyDmd && !existingLog?.dmDeliveryUnconfirmed && !isPermanentDMFailure(existingLog);
 
     // Skip only when there is genuinely nothing left to do. A comment whose DM
     // already sent but whose public reply never posted (e.g. it hit a rate
@@ -687,11 +690,11 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
               message: fallbackMessage,
               postId: mediaId,
             });
-          } catch {
+          } catch (fallbackError) {
             // The first attempt consumed the comment's single private reply, so
             // this one reports "invalid for a private reply" no matter what the
             // underlying problem was. Surface the original rejection instead.
-            throw buttonError;
+            throw fallbackError instanceof PermissionError ? buttonError : fallbackError;
           }
         }
       } else {
@@ -1428,7 +1431,7 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
   try {
     await dispatchJob(job);
   } catch (error) {
-    if (error instanceof ZernioDeliveryUnconfirmedError)
+    if (error instanceof ZernioDeliveryUnconfirmedError || error instanceof PermissionError)
       throw new UnrecoverableError(error.message);
     throw error;
   }

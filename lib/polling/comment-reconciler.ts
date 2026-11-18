@@ -38,6 +38,7 @@ import {
   type SocialAccountContext,
 } from "@/lib/instagram/provider";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
+import { permanentDMFailure } from "@/lib/queue/permanent-dm-failure";
 import type { SocialPlatform } from "@/lib/social-platform";
 
 // Only consider comments from the last few days — older ones are outside
@@ -243,7 +244,7 @@ async function sweepCampaign({
         automationId: automation.id,
         commentId: { in: needsAction.map((c) => c.id) },
         AND: [
-          { OR: [{ status: "SENT" }, { dmDeliveryUnconfirmed: true }] },
+          { OR: [{ status: "SENT" }, { dmDeliveryUnconfirmed: true }, permanentDMFailure] },
           ...(automation.publicReplyEnabled ? [{ OR: [{ publicReplySentAt: { not: null } }, { publicReplyDeliveryUnconfirmed: true }] }] : []),
         ],
       },
