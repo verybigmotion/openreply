@@ -11,9 +11,10 @@ function emptyCounts() {
   return Object.fromEntries(FAILURE_REASONS.map((r) => [r.key, 0])) as Record<FailureReason, number>;
 }
 
-async function loadFailures(): Promise<{ days: FailureDay[]; accounts: FailureAccount[] }> {
-  const rows = await prisma.$queryRaw<Array<{ day: string; account: string; reason: FailureReason | "sent"; n: number }>>`
+async function loadFailures(): Promise<{ days: FailureDay[]; accounts: FailureAccount[]; last24h: FailureDay }> {
+  const rows = await prisma.$queryRaw<Array<{ day: string; account: string; recent: boolean; reason: FailureReason | "sent"; n: number }>>`
     SELECT to_char(date_trunc('day', d."createdAt"), 'YYYY-MM-DD') AS day, s.username AS account,
+      d."createdAt" >= now() - interval '24 hours' AS recent,
       CASE
         WHEN status = 'SENT' THEN 'sent'
         WHEN status = 'SKIPPED_PLAN_LIMIT' THEN 'plan_limit'
@@ -29,7 +30,7 @@ async function loadFailures(): Promise<{ days: FailureDay[]; accounts: FailureAc
     FROM "DmLog" d JOIN "SocialAccount" s ON s.id = d."socialAccountId"
     WHERE d."createdAt" >= date_trunc('day', now()) - make_interval(days => ${DAYS - 1})
       AND d.status IN ('SENT', 'FAILED', 'SKIPPED_RATE_LIMIT', 'SKIPPED_PLAN_LIMIT')
-    GROUP BY 1, 2, 3`;
+    GROUP BY 1, 2, 3, 4`;
 
   const today = new Date();
   const dayKeys = Array.from({ length: DAYS }, (_, i) =>
@@ -37,18 +38,19 @@ async function loadFailures(): Promise<{ days: FailureDay[]; accounts: FailureAc
   );
   const emptyDays = (): FailureDay[] => dayKeys.map((day) => ({ day, total: 0, ...emptyCounts() }));
   const days = emptyDays();
+  const last24h: FailureDay = { day: "last24h", total: 0, ...emptyCounts() };
   const byAccount = new Map<string, FailureAccount>();
   for (const row of rows) {
     const index = dayKeys.indexOf(row.day);
     if (index === -1) continue;
     const account = byAccount.get(row.account) ?? { username: row.account, total: 0, days: emptyDays(), ...emptyCounts() };
     byAccount.set(row.account, account);
-    for (const target of [days[index], account.days[index], account]) {
+    for (const target of [days[index], account.days[index], account, ...(row.recent ? [last24h] : [])]) {
       target.total += row.n;
       if (row.reason !== "sent") target[row.reason] += row.n;
     }
   }
-  return { days, accounts: [...byAccount.values()] };
+  return { days, accounts: [...byAccount.values()], last24h };
 }
 
 export default async function OperatorAnalyticsPage() {

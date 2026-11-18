@@ -64,7 +64,7 @@ function HoverBreakdown({ title, counts, children, className }: { title: string;
 
 type SortColumn = "username" | "rate" | "total" | "failed";
 
-export default function DmFailureChart({ days, accounts }: { days: FailureDay[]; accounts: FailureAccount[] }) {
+export default function DmFailureChart({ days, accounts, last24h }: { days: FailureDay[]; accounts: FailureAccount[]; last24h: FailureDay }) {
   const [showAccounts, setShowAccounts] = useState(false);
   const [sort, setSort] = useState<{ column: SortColumn; descending: boolean }>({ column: "failed", descending: true });
   const byAccount = accounts
@@ -88,8 +88,8 @@ export default function DmFailureChart({ days, accounts }: { days: FailureDay[];
   );
   const peakDailyRate = Math.max(0, ...accounts.flatMap((a) => a.days.map((d) => share(countFailed(d), d.total))));
   const stripMax = Math.max(10, Math.ceil(peakDailyRate / 10) * 10);
-  const total = days.reduce((sum, d) => sum + d.total, 0);
-  const totals = FAILURE_REASONS.map((r) => ({ ...r, count: days.reduce((sum, d) => sum + d[r.key], 0) }));
+  const total = last24h.total;
+  const totals = FAILURE_REASONS.map((r) => ({ ...r, count: last24h[r.key] }));
   const failed = totals.reduce((sum, r) => sum + r.count, 0);
   const ring = [...totals, { key: "sent", color: SENT_COLOR, count: total - failed }];
   const bars = days.map((d) => ({
@@ -101,8 +101,8 @@ export default function DmFailureChart({ days, accounts }: { days: FailureDay[];
     <div className="panel rounded p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">DM failures over 30 days</h2>
-          <p className="mt-1 text-sm text-muted">DMs that did not go out, by reason, as a share of every DM attempted</p>
+          <h2 className="text-sm font-semibold text-foreground">DM failures</h2>
+          <p className="mt-1 text-sm text-muted">DMs that did not go out, by reason, as a share of every DM attempted: last 24 hours above, last 30 days below</p>
         </div>
         <button
           type="button"
@@ -136,7 +136,7 @@ export default function DmFailureChart({ days, accounts }: { days: FailureDay[];
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             <p className="text-2xl font-semibold text-foreground">{formatPercent(share(failed, total))}</p>
-            <p className="mt-1 text-xs text-muted">of {total.toLocaleString("en")} DMs</p>
+            <p className="mt-1 text-xs text-muted">of {total.toLocaleString("en")} DMs in 24h</p>
           </div>
         </div>
 
@@ -222,7 +222,15 @@ export default function DmFailureChart({ days, accounts }: { days: FailureDay[];
                   stroke={SURFACE}
                   strokeWidth={1}
                   isAnimationActive={false}
-                />
+                >
+                  {bars.map((d, index) =>
+                    index === bars.length - 1 ? (
+                      <Cell key={d.day} fill={r.color} fillOpacity={0.35} stroke={r.color} strokeDasharray="3 2" />
+                    ) : (
+                      <Cell key={d.day} fill={r.color} />
+                    )
+                  )}
+                </Bar>
               ))}
             </BarChart>
           </ResponsiveContainer>
