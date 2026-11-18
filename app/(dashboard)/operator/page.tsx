@@ -1,4 +1,5 @@
 import { socialAccountLabel } from "@/lib/social-account-label";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
@@ -54,11 +55,46 @@ async function loadOverview() {
   return { now, workspaces, workerHealth, lastWebhookByWorkspace, failedByWorkspace, sentByWorkspace, errorsByWorkspace };
 }
 
-export default async function OperatorPage() {
+const SORT_COLUMNS = ["workspace", "owner", "webhook", "sent", "failed", "errors"] as const;
+type SortColumn = (typeof SORT_COLUMNS)[number];
+
+function SortHeader({ column, label, sort, descending }: { column: SortColumn; label: string; sort: SortColumn; descending: boolean }) {
+  const active = sort === column;
+  const nextDescending = active ? !descending : column !== "workspace" && column !== "owner";
+  return (
+    <th className="py-2 pr-4 font-medium" aria-sort={active ? (descending ? "descending" : "ascending") : undefined}>
+      <Link href={`/operator?sort=${column}&dir=${nextDescending ? "desc" : "asc"}`} className="hover:text-foreground">
+        {label}
+        {active && (descending ? " ↓" : " ↑")}
+      </Link>
+    </th>
+  );
+}
+
+export default async function OperatorPage({ searchParams }: { searchParams: Promise<{ sort?: string; dir?: string }> }) {
   const userId = await getCurrentUserId();
   if (!userId || !(await isOperatorUser(userId))) redirect("/dashboard");
 
-  const { now, workspaces, workerHealth, lastWebhookByWorkspace, failedByWorkspace, sentByWorkspace, errorsByWorkspace } = await loadOverview();
+  const params = await searchParams;
+  const sort: SortColumn = SORT_COLUMNS.find((column) => column === params.sort) ?? "workspace";
+  const descending = params.dir === "desc";
+
+  const { now, workspaces: unsorted, workerHealth, lastWebhookByWorkspace, failedByWorkspace, sentByWorkspace, errorsByWorkspace } = await loadOverview();
+
+  const sortValue = (workspace: (typeof unsorted)[number]): string | number => {
+    if (sort === "workspace") return workspace.name.toLowerCase();
+    if (sort === "owner") return workspace.owner.email?.toLowerCase() ?? "";
+    if (sort === "webhook") return lastWebhookByWorkspace.get(workspace.id)?.getTime() ?? 0;
+    if (sort === "sent") return sentByWorkspace.get(workspace.id) ?? 0;
+    if (sort === "failed") return failedByWorkspace.get(workspace.id) ?? 0;
+    return errorsByWorkspace.get(workspace.id) ?? 0;
+  };
+  const workspaces = [...unsorted].sort((a, b) => {
+    const x = sortValue(a);
+    const y = sortValue(b);
+    const order = typeof x === "string" ? x.localeCompare(String(y)) : x - Number(y);
+    return descending ? -order : order;
+  });
 
   return (
     <div className="space-y-6">
@@ -76,14 +112,14 @@ export default async function OperatorPage() {
         <table className="mt-4 w-full text-sm">
           <thead className="text-left text-muted">
             <tr>
-              <th className="py-2 pr-4 font-medium">Workspace</th>
-              <th className="py-2 pr-4 font-medium">Owner</th>
+              <SortHeader column="workspace" label="Workspace" sort={sort} descending={descending} />
+              <SortHeader column="owner" label="Owner" sort={sort} descending={descending} />
               <th className="py-2 pr-4 font-medium">Accounts</th>
               <th className="py-2 pr-4 font-medium">Token</th>
-              <th className="py-2 pr-4 font-medium">Last webhook</th>
-              <th className="py-2 pr-4 font-medium">Sent 24h</th>
-              <th className="py-2 pr-4 font-medium">Failed 24h</th>
-              <th className="py-2 pr-4 font-medium">Errors 24h</th>
+              <SortHeader column="webhook" label="Last webhook" sort={sort} descending={descending} />
+              <SortHeader column="sent" label="Sent 24h" sort={sort} descending={descending} />
+              <SortHeader column="failed" label="Failed 24h" sort={sort} descending={descending} />
+              <SortHeader column="errors" label="Errors 24h" sort={sort} descending={descending} />
               <th className="py-2 font-medium"></th>
             </tr>
           </thead>
