@@ -31,15 +31,15 @@ export class TokenExpiredError extends MetaApiError {
 }
 
 export class RateLimitError extends MetaApiError {
-  constructor(message: string, fbTraceId?: string) {
-    super(368, undefined, fbTraceId, message);
+  constructor(message: string, fbTraceId?: string, code = 368, subcode?: number) {
+    super(code, subcode, fbTraceId, message);
     this.name = "RateLimitError";
   }
 }
 
 export class PermissionError extends MetaApiError {
-  constructor(message: string, fbTraceId?: string) {
-    super(100, undefined, fbTraceId, message);
+  constructor(message: string, fbTraceId?: string, code = 100, subcode?: number) {
+    super(code, subcode, fbTraceId, message);
     this.name = "PermissionError";
   }
 }
@@ -137,11 +137,14 @@ export async function handleResponse<T>(response: Response): Promise<T> {
       case 613:
       case 32:
       case 80001:
-        throw new RateLimitError(message, traceId);
+        console.warn(
+          `[Meta] Rate limit: ${message} app-usage=${response.headers.get("x-app-usage") ?? "-"} buc-usage=${response.headers.get("x-business-use-case-usage") ?? "-"}`
+        );
+        throw new RateLimitError(message, traceId, code, subcode);
       case 10:
       case 100:
       case 200:
-        throw new PermissionError(message, traceId);
+        throw new PermissionError(message, traceId, code, subcode);
       default:
         throw new MetaApiError(code, subcode, traceId, message);
     }

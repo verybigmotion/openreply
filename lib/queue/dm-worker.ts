@@ -544,7 +544,9 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           data: {
             status: "SKIPPED_RATE_LIMIT",
             matchedKeyword: matchResult.matchedKeyword,
-            errorMessage: "Hourly DM rate limit reached",
+            errorMessage: rateLimit.pauseReason
+              ? `Account paused by Instagram rate limit: ${rateLimit.pauseReason}`
+              : "Hourly DM rate limit reached",
           },
         });
         continue;
@@ -561,7 +563,9 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           data: {
             status: "PENDING",
             matchedKeyword: matchResult.matchedKeyword,
-            errorMessage: "Hourly rate limit hit; retry scheduled",
+            errorMessage: rateLimit.pauseReason
+              ? `Account paused by Instagram rate limit; retry scheduled: ${rateLimit.pauseReason}`
+              : "Hourly rate limit hit; retry scheduled",
           },
         });
 
@@ -719,7 +723,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     } catch (error) {
       const pauseDelayMs =
         error instanceof RateLimitError
-          ? await pauseDMSends(instagramAccountId)
+          ? await pauseDMSends(instagramAccountId, formatError(error))
           : null;
       // The rate slot was reserved before the send; this send did not deliver a
       // DM, so hand the slot back instead of burning it (and burning more on

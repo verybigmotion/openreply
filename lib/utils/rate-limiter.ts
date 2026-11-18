@@ -45,6 +45,7 @@ export interface RateLimitResult {
   requeueDelayMs: number;
   shouldSkip: boolean;
   reserved: boolean;
+  pauseReason?: string;
 }
 
 const RESERVE_DM_SLOT_SCRIPT = `
@@ -52,8 +53,9 @@ local current = tonumber(redis.call("GET", KEYS[1]) or "0")
 local max = tonumber(ARGV[1])
 local ttl = tonumber(ARGV[2])
 
-if current >= max or redis.call("EXISTS", KEYS[2]) == 1 then
-  return {0, current, 0}
+local pause_reason = redis.call("GET", KEYS[2])
+if current >= max or pause_reason then
+  return {0, current, 0, pause_reason or ""}
 end
 
 local next_count = redis.call("INCR", KEYS[1])
@@ -180,7 +182,8 @@ export async function reserveDMSlot(
   const remaining = toScriptNumber(values[2]);
 
   if (allowedFlag !== 1) {
-    return blockedResult(count, requeueAttempt);
+    const pauseReason = typeof values[3] === "string" && values[3] ? values[3] : undefined;
+    return { ...blockedResult(count, requeueAttempt), pauseReason };
   }
 
   return {
@@ -227,11 +230,12 @@ function pauseKey(instagramAccountId: string): string {
 }
 
 export async function pauseDMSends(
-  instagramAccountId: string
+  instagramAccountId: string,
+  reason: string
 ): Promise<number> {
   const client = getRedis();
   const key = pauseKey(instagramAccountId);
-  await client.set(key, "1", "EX", REQUEUE_DELAY_MS / 1000, "NX");
+  await client.set(key, reason, "EX", REQUEUE_DELAY_MS / 1000, "NX");
   const remainingMs = Math.max(await client.pttl(key), 0);
   return remainingMs + jitterMs();
 }

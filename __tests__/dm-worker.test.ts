@@ -439,6 +439,31 @@ describe("DM Worker — Full Pipeline", () => {
     );
   });
 
+  it("keeps the Instagram error that paused the account in the requeued DM log", async () => {
+    mockReserveDMSlot.mockResolvedValue({
+      allowed: false,
+      currentCount: 3,
+      remainingDMs: 0,
+      shouldRequeue: true,
+      requeueDelayMs: 1800000,
+      shouldSkip: false,
+      reserved: false,
+      pauseReason: "RateLimitError 613: limit [code=613 sub=2534040]",
+    });
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "PENDING",
+          errorMessage: expect.stringContaining("[code=613 sub=2534040]"),
+        }),
+      })
+    );
+  });
+
   it("should requeue and release monthly usage when rate limited", async () => {
     mockReserveDMSlot.mockResolvedValue({
       allowed: false,
@@ -479,7 +504,7 @@ describe("DM Worker — Full Pipeline", () => {
     const processor = getProcessor();
     await processor(createMockJob());
 
-    expect(mockPauseDMSends).toHaveBeenCalledWith("ig_456");
+    expect(mockPauseDMSends).toHaveBeenCalledWith("ig_456", expect.stringContaining("limit"));
     expect(mockReleaseDMSlot).toHaveBeenCalledWith("ig_456");
     expect(mockPauseDMSends.mock.invocationCallOrder[0]).toBeLessThan(
       mockReleaseDMSlot.mock.invocationCallOrder[0]

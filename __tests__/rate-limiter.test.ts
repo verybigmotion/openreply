@@ -124,6 +124,23 @@ describe("reserveDMSlot", () => {
     expect(result.requeueDelayMs).toBeLessThan(35 * 60 * 1000);
   });
 
+  it("returns the Instagram error that paused the account", async () => {
+    mockEval.mockResolvedValue([0, 3, 0, "RateLimitError 613: limit"]);
+
+    const result = await reserveDMSlot("account_123", 0);
+
+    expect(result.allowed).toBe(false);
+    expect(result.pauseReason).toBe("RateLimitError 613: limit");
+  });
+
+  it("has no pause reason when only the hourly cap blocks", async () => {
+    mockEval.mockResolvedValue([0, RATE_LIMIT_MAX, 0, ""]);
+
+    const result = await reserveDMSlot("account_123", 0);
+
+    expect(result.pauseReason).toBeUndefined();
+  });
+
   it("should skip after max requeue attempts", async () => {
     mockEval.mockResolvedValue(["0", String(RATE_LIMIT_MAX), "0"]);
 
@@ -139,11 +156,11 @@ describe("pauseDMSends", () => {
   it("pauses the account in its own key without touching the hourly counter", async () => {
     mockPttl.mockResolvedValue(1800 * 1000);
 
-    const delay = await pauseDMSends("account_123");
+    const delay = await pauseDMSends("account_123", "RateLimitError 613: limit");
 
     expect(mockSet).toHaveBeenCalledWith(
       "pause:dm:account_123",
-      "1",
+      "RateLimitError 613: limit",
       "EX",
       1800,
       "NX"
@@ -158,7 +175,7 @@ describe("pauseDMSends", () => {
   it("schedules the retry after an already running pause instead of extending it", async () => {
     mockPttl.mockResolvedValue(10 * 60 * 1000);
 
-    const delay = await pauseDMSends("account_123");
+    const delay = await pauseDMSends("account_123", "RateLimitError 613: limit");
 
     expect(delay).toBeGreaterThanOrEqual(10 * 60 * 1000);
     expect(delay).toBeLessThan(15 * 60 * 1000);

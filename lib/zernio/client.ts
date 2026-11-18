@@ -57,7 +57,7 @@ export async function zernioRequest<T>({
   // safe to persist in job errors or return to the browser.
   if (!response.ok) {
     const message = `Zernio request failed (HTTP ${response.status})`;
-    if (response.status === 429) throw new RateLimitError(message);
+    if (response.status === 429) throw new RateLimitError(message, undefined, 429);
     if (response.status === 401) throw new TokenExpiredError(message);
     throw new ZernioApiError(response.status);
   }
