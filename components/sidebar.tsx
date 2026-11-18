@@ -45,8 +45,16 @@ export default function Sidebar({
   const { t } = useI18n();
   const pathname = usePathname();
   const items = operatorWorkspaces
-    ? [...navItems, { label: "Operator", href: "/operator" } as const]
+    ? [
+        ...navItems,
+        { label: "Operator", href: "/operator" } as const,
+        { label: "Analytics", href: "/operator/analytics" } as const,
+      ]
     : navItems;
+  const activeHref = items
+    .map((item) => item.href)
+    .filter((href) => pathname === href || pathname.startsWith(href + "/"))
+    .sort((a, b) => b.length - a.length)[0];
 
   return (
     <>
@@ -79,8 +87,7 @@ export default function Sidebar({
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {items.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
+            const isActive = item.href === activeHref;
             return (
               <Link
                 key={item.href}
