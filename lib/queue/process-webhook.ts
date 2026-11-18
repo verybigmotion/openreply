@@ -35,13 +35,12 @@ export async function processInstagramWebhook({ payload: incoming, provider, wor
     const commentEvents = parseCommentEvents(
       payload as Parameters<typeof parseCommentEvents>[0]
     );
-    const queue = getDMQueue();
 
     for (const event of commentEvents) {
       const account = accountMap.get(event.instagramAccountId);
       if (!account) continue;
 
-      await queue.add(
+      await getDMQueue(event.instagramAccountId).add(
         "process-comment",
         {
           instagramAccountId: event.instagramAccountId,
@@ -73,7 +72,7 @@ export async function processInstagramWebhook({ payload: incoming, provider, wor
     );
 
     for (const event of postbackEvents) {
-      await queue.add(
+      await getDMQueue(event.instagramAccountId).add(
         POSTBACK_JOB_NAME,
         {
           instagramAccountId: event.instagramAccountId,
@@ -101,7 +100,7 @@ export async function processInstagramWebhook({ payload: incoming, provider, wor
       const account = accountMap.get(event.instagramAccountId);
       if (!account) continue;
 
-      await queue.add(
+      await getDMQueue(event.instagramAccountId).add(
         MESSAGE_JOB_NAME,
         {
           instagramAccountId: event.instagramAccountId,
@@ -143,7 +142,7 @@ export async function processInstagramWebhook({ payload: incoming, provider, wor
       );
       if (!automationId) continue;
 
-      await queue.add(
+      await getDMQueue(event.instagramAccountId).add(
         POSTBACK_JOB_NAME,
         {
           instagramAccountId: event.instagramAccountId,

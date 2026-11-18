@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
       context: accessToken,
       userId: body.recipientId,
       message: text,
+      skipPacing: true,
     });
     return NextResponse.json({ success: true, data: result });
   } catch (err) {

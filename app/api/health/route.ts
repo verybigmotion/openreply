@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getDMQueue, getRedisConnection } from "@/lib/queue/client";
+import { getDMJobCounts, getRedisConnection } from "@/lib/queue/client";
 import { getWorkerHealth } from "@/lib/ops/worker-health";
 
 export const runtime = "nodejs";
@@ -41,7 +41,12 @@ async function checkRedis(): Promise<HealthCheck> {
 
 async function checkQueue(): Promise<HealthCheck & { counts?: unknown }> {
   try {
-    const counts = await getDMQueue().getJobCounts(
+    const accounts = await prisma.socialAccount.findMany({
+      select: { externalId: true },
+      distinct: ["externalId"],
+    });
+    const counts = await getDMJobCounts(
+      accounts.map((account) => account.externalId),
       "waiting",
       "active",
       "delayed",

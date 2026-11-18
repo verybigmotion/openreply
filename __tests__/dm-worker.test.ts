@@ -35,6 +35,7 @@ const {
     },
     socialAccount: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
     },
     operationalEvent: {
       create: vi.fn(),
@@ -108,6 +109,7 @@ vi.mock("@/lib/utils/rate-limiter", () => ({
   reserveDMSlot: mockReserveDMSlot,
   releaseDMSlot: mockReleaseDMSlot,
   pauseDMSends: mockPauseDMSends,
+  waitForDMSendTurn: vi.fn().mockResolvedValue(undefined),
   MAX_REQUEUE_ATTEMPTS: 3,
 }));
 
@@ -125,14 +127,18 @@ vi.mock("@/lib/queue/client", () => ({
     add: mockQueueAdd,
   }),
   getRedisConnection: vi.fn(),
+  dmQueueName: (instagramAccountId: string) => `dm-${instagramAccountId}`,
+  LEGACY_DM_QUEUE_NAME: "dm-processing",
   POSTBACK_JOB_NAME: "process-postback",
   FOLLOWUP_JOB_NAME: "process-followup",
   MESSAGE_JOB_NAME: "process-message",
 }));
 
 vi.mock("bullmq", () => {
-  function MockWorker(_name: string, processor: unknown) {
+  function MockWorker(name: string, processor: unknown, opts: { concurrency: number }) {
     (global as Record<string, unknown>).__dmWorkerProcessor = processor;
+    const created = ((global as Record<string, unknown>).__dmWorkersCreated ??= []) as unknown[];
+    created.push([name, opts.concurrency]);
     return {
       on: vi.fn(),
       close: vi.fn(),
@@ -146,7 +152,7 @@ vi.mock("bullmq", () => {
   };
 });
 
-import { createDMWorker } from "../lib/queue/dm-worker";
+import { createDMWorker, startDMWorkers } from "../lib/queue/dm-worker";
 
 const usagePeriodStart = new Date("2026-05-01T00:00:00.000Z");
 
@@ -195,7 +201,7 @@ function getProcessor(): (job: {
   id: string;
   attemptsMade: number;
 }) => Promise<void> {
-  createDMWorker();
+  createDMWorker("dm-test", 1);
   return (global as Record<string, unknown>).__dmWorkerProcessor as (job: {
     name?: string;
     data: typeof mockJobData | Record<string, unknown>;
@@ -325,6 +331,26 @@ describe("DM Worker — comments left on an ad", () => {
       })
     );
     expect(mockSendPrivateReply).toHaveBeenCalled();
+  });
+});
+
+describe("DM Worker — one queue per account", () => {
+  it("runs each account's queue one job at a time and starts each account only once", async () => {
+    (global as Record<string, unknown>).__dmWorkersCreated = [];
+    mockPrisma.socialAccount.findMany.mockResolvedValue([
+      { externalId: "ig_1" },
+      { externalId: "ig_2" },
+    ]);
+
+    const workers = startDMWorkers();
+    await workers.syncAccounts();
+    await workers.syncAccounts();
+
+    expect((global as Record<string, unknown>).__dmWorkersCreated).toEqual([
+      ["dm-processing", 5],
+      ["dm-ig_1", 1],
+      ["dm-ig_2", 1],
+    ]);
   });
 });
 

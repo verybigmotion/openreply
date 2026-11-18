@@ -225,6 +225,29 @@ export async function releaseDMSlot(
   return next;
 }
 
+const DM_SEND_GAP_MS = 5_000;
+
+const RESERVE_DM_SEND_TURN_SCRIPT = `
+local time = redis.call("TIME")
+local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+local turn = math.max(now, tonumber(redis.call("GET", KEYS[1]) or "0"))
+local next_turn = turn + tonumber(ARGV[1])
+redis.call("SET", KEYS[1], next_turn, "PX", next_turn - now)
+return turn - now
+`;
+
+export async function waitForDMSendTurn(instagramAccountId: string): Promise<void> {
+  const delayMs = toScriptNumber(
+    await getRedis().eval(
+      RESERVE_DM_SEND_TURN_SCRIPT,
+      1,
+      `send:dm:${instagramAccountId}`,
+      DM_SEND_GAP_MS
+    )
+  );
+  if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
 function pauseKey(instagramAccountId: string): string {
   return `pause:dm:${instagramAccountId}`;
 }

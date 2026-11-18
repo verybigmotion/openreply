@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { UnrecoverableError, Worker, type Job } from "bullmq";
 import {
+  dmQueueName,
   getDMQueue,
   getRedisConnection,
+  LEGACY_DM_QUEUE_NAME,
   MESSAGE_JOB_NAME,
   POSTBACK_JOB_NAME,
   FOLLOWUP_JOB_NAME,
@@ -569,7 +571,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           },
         });
 
-        await getDMQueue().add(
+        await getDMQueue(instagramAccountId).add(
           "process-comment",
           {
             ...job.data,
@@ -751,7 +753,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           },
         });
         if (givesUp) continue;
-        await getDMQueue().add(
+        await getDMQueue(instagramAccountId).add(
           "process-comment",
           {
             ...job.data,
@@ -1010,7 +1012,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
       const delayMs =
         Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
-      await getDMQueue().add(
+      await getDMQueue(automation.socialAccount.externalId).add(
         FOLLOWUP_JOB_NAME,
         {
           instagramAccountId: automation.socialAccount.externalId,
@@ -1341,7 +1343,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         // here exactly as it does after a button tap. Not scheduled behind the
         // follow prompt — no link went out yet in that branch.
         if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
-          await getDMQueue().add(
+          await getDMQueue(automation.socialAccount.externalId).add(
             FOLLOWUP_JOB_NAME,
             {
               instagramAccountId: automation.socialAccount.externalId,
@@ -1477,10 +1479,31 @@ async function recordWorkerFailure(
   }
 }
 
-export function createDMWorker(): Worker<DmQueueJob> {
-  const worker = new Worker<DmQueueJob>("dm-processing", processJob, {
+export function startDMWorkers() {
+  const workers = new Map<string, Worker<DmQueueJob>>();
+  const start = (queueName: string, concurrency: number) => {
+    if (!workers.has(queueName)) workers.set(queueName, createDMWorker(queueName, concurrency));
+  };
+  start(LEGACY_DM_QUEUE_NAME, 5);
+
+  return {
+    async syncAccounts() {
+      const accounts = await prisma.socialAccount.findMany({
+        select: { externalId: true },
+        distinct: ["externalId"],
+      });
+      for (const { externalId } of accounts) start(dmQueueName(externalId), 1);
+    },
+    async close() {
+      await Promise.all([...workers.values()].map((worker) => worker.close()));
+    },
+  };
+}
+
+export function createDMWorker(queueName: string, concurrency: number): Worker<DmQueueJob> {
+  const worker = new Worker<DmQueueJob>(queueName, processJob, {
     connection: getRedisConnection(),
-    concurrency: 5,
+    concurrency,
     settings: {
       backoffStrategy: (attemptsMade: number) =>
         BACKOFF_DELAYS[Math.min(attemptsMade - 1, BACKOFF_DELAYS.length - 1)],

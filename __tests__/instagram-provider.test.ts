@@ -5,10 +5,17 @@ vi.mock("@/lib/db/client", () => ({
 vi.mock("@/lib/meta/oauth", () => ({
   decryptToken: (value: string) => `decrypted:${value}`,
 }));
+const { mockWaitForDMSendTurn } = vi.hoisted(() => ({
+  mockWaitForDMSendTurn: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/lib/utils/rate-limiter", () => ({
+  waitForDMSendTurn: mockWaitForDMSendTurn,
+}));
 import {
   createSocialAccountContext,
   sendPrivateReplyWithButton,
   sendDirectMessageWithLinkButton,
+  sendDirectMessage,
   getRecentMediaComments,
   getUserFollowStatus,
   getUserMedia,
@@ -73,6 +80,17 @@ describe("Instagram provider boundary", () => {
       ],
     });
   });
+  it("sends an operator reply without waiting for the account's DM pacing", async () => {
+    respond({ data: { messageId: "mid" } });
+    await sendDirectMessage({
+      context,
+      userId: "recipient",
+      message: "hi",
+      skipPacing: true,
+    });
+    expect(mockWaitForDMSendTurn).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("sends URL buttons to the recipient IGSID without another send", async () => {
     respond({ data: { messageId: "mid" } });
     await sendDirectMessageWithLinkButton({
@@ -81,6 +99,10 @@ describe("Instagram provider boundary", () => {
       text: "link",
       buttons: [{ title: "Open", url: "https://example.com" }],
     });
+    expect(mockWaitForDMSendTurn).toHaveBeenCalledWith("ig");
+    expect(mockWaitForDMSendTurn.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock.mock.invocationCallOrder[0]
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toContain(
       "/conversations/recipient/messages"

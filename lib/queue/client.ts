@@ -80,11 +80,40 @@ export const POSTBACK_JOB_NAME = "process-postback";
 export const FOLLOWUP_JOB_NAME = "process-followup";
 export const MESSAGE_JOB_NAME = "process-message";
 
-let dmQueue: Queue<DmQueueJob> | null = null;
+export const LEGACY_DM_QUEUE_NAME = "dm-processing";
 
-export function getDMQueue(): Queue<DmQueueJob> {
+export function dmQueueName(instagramAccountId: string): string {
+  return `dm-${instagramAccountId}`;
+}
+
+const dmQueues = new Map<string, Queue<DmQueueJob>>();
+
+export function getDMQueue(instagramAccountId: string): Queue<DmQueueJob> {
+  return getDMQueueByName(dmQueueName(instagramAccountId));
+}
+
+export async function getDMJobCounts(
+  instagramAccountIds: string[],
+  ...states: Parameters<Queue["getJobCounts"]>
+): Promise<Record<string, number>> {
+  const perQueue = await Promise.all(
+    [LEGACY_DM_QUEUE_NAME, ...instagramAccountIds.map(dmQueueName)].map((name) =>
+      getDMQueueByName(name).getJobCounts(...states)
+    )
+  );
+  const totals: Record<string, number> = {};
+  for (const counts of perQueue) {
+    for (const [state, count] of Object.entries(counts)) {
+      totals[state] = (totals[state] ?? 0) + count;
+    }
+  }
+  return totals;
+}
+
+function getDMQueueByName(name: string): Queue<DmQueueJob> {
+  let dmQueue = dmQueues.get(name);
   if (!dmQueue) {
-    dmQueue = new Queue<DmQueueJob>("dm-processing", {
+    dmQueue = new Queue<DmQueueJob>(name, {
       connection: getRedisConnection(),
       defaultJobOptions: {
         removeOnComplete: { count: 1000 }, // Keep last 1000 completed jobs
@@ -101,6 +130,7 @@ export function getDMQueue(): Queue<DmQueueJob> {
         },
       },
     });
+    dmQueues.set(name, dmQueue);
   }
   return dmQueue;
 }

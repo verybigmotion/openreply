@@ -190,7 +190,7 @@ async function sweepCampaign({
   }
   if (mediaIds.length === 0) return stat;
 
-  const queue = getDMQueue();
+  const queue = getDMQueue(account.externalId);
 
   for (const mediaId of mediaIds) {
     let comments: InstagramComment[];

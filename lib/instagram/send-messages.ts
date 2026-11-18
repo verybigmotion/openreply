@@ -5,6 +5,7 @@ import {
   ZernioApiError,
   ZernioDeliveryUnconfirmedError,
 } from "@/lib/zernio/client";
+import { waitForDMSendTurn } from "@/lib/utils/rate-limiter";
 import type { SocialAccountContext, ZernioContext } from "./context";
 
 type Button =
@@ -84,6 +85,7 @@ export async function sendPrivateReply({
   message: string;
   postId?: string;
 }) {
+  await waitForDMSendTurn(context.externalId);
   if (context.provider === "META")
     return meta.sendPrivateReply(
       context.accessToken,
@@ -110,6 +112,7 @@ export async function sendPrivateReplyWithButton({
   payload: string;
   postId?: string;
 }) {
+  await waitForDMSendTurn(context.externalId);
   if (context.provider === "META")
     return meta.sendPrivateReplyWithButton(
       context.accessToken,
@@ -142,6 +145,7 @@ export async function sendDirectMessageWithButton({
   buttonTitle: string;
   payload: string;
 }) {
+  await waitForDMSendTurn(context.externalId);
   if (context.provider === "META")
     return meta.sendDirectMessageWithButton(
       context.accessToken,
@@ -173,6 +177,7 @@ export async function sendPrivateReplyWithLinkButton({
   buttons: meta.LinkButton[];
   postId?: string;
 }) {
+  await waitForDMSendTurn(context.externalId);
   if (context.provider === "META")
     return meta.sendPrivateReplyWithLinkButton(
       context.accessToken,
@@ -195,11 +200,14 @@ export async function sendDirectMessage({
   context,
   userId,
   message,
+  skipPacing = false,
 }: {
   context: SocialAccountContext;
   userId: string;
   message: string;
+  skipPacing?: boolean;
 }) {
+  if (!skipPacing) await waitForDMSendTurn(context.externalId);
   if (context.provider === "META")
     return meta.sendDirectMessage(
       context.accessToken,
@@ -222,6 +230,7 @@ export async function sendDirectMessageWithLinkButton({
   text: string;
   buttons: meta.LinkButton[];
 }) {
+  await waitForDMSendTurn(context.externalId);
   if (context.provider === "META")
     return meta.sendDirectMessageWithLinkButton(
       context.accessToken,

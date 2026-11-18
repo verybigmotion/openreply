@@ -39,6 +39,7 @@ import {
   reserveDMSlot,
   releaseDMSlot,
   pauseDMSends,
+  waitForDMSendTurn,
   RATE_LIMIT_MAX,
 } from "../lib/utils/rate-limiter";
 
@@ -149,6 +150,30 @@ describe("reserveDMSlot", () => {
     expect(result.allowed).toBe(false);
     expect(result.shouldRequeue).toBe(false);
     expect(result.shouldSkip).toBe(true);
+  });
+});
+
+describe("waitForDMSendTurn", () => {
+  it("waits for the account's next 5 second send turn", async () => {
+    vi.useFakeTimers();
+    mockEval.mockResolvedValue(3000);
+    let done = false;
+
+    const waiting = waitForDMSendTurn("account_123").then(() => {
+      done = true;
+    });
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await waiting;
+    expect(done).toBe(true);
+    expect(mockEval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      "send:dm:account_123",
+      5000
+    );
+    vi.useRealTimers();
   });
 });
 

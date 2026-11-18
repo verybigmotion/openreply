@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
-import { getDMQueue } from "@/lib/queue/client";
+import { getDMJobCounts } from "@/lib/queue/client";
 import { getWorkerAlerts, getWorkerHealth } from "@/lib/ops/worker-health";
 
 export const runtime = "nodejs";
@@ -24,7 +24,17 @@ export async function GET() {
     tokenRefreshFailures,
     operationalEvents,
   ] = await Promise.all([
-    getDMQueue().getJobCounts("waiting", "active", "delayed", "failed"),
+    prisma.socialAccount
+      .findMany({ where: { workspaceId }, select: { externalId: true } })
+      .then((accounts) =>
+        getDMJobCounts(
+          accounts.map((account) => account.externalId),
+          "waiting",
+          "active",
+          "delayed",
+          "failed"
+        )
+      ),
     getWorkerHealth(),
     getWorkerAlerts(10),
     prisma.webhookEvent.findMany({
