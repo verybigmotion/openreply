@@ -19,7 +19,7 @@ async function loadFailures(): Promise<{ days: FailureDay[]; accounts: FailureAc
         WHEN status = 'SKIPPED_PLAN_LIMIT' THEN 'plan_limit'
         WHEN "errorMessage" LIKE '%Error 368:%' THEN 'account_blocked'
         WHEN status = 'SKIPPED_RATE_LIMIT' OR "errorMessage" LIKE '%Error 613:%' OR "errorMessage" LIKE 'RateLimitError%' THEN 'rate_limited'
-        WHEN "errorMessage" LIKE '%invalid for a private reply%' OR "errorMessage" LIKE '%already has a reply%' THEN 'already_replied'
+        WHEN "errorMessage" LIKE '%invalid for a private reply%' OR "errorMessage" LIKE '%already has a reply%' THEN 'refused'
         WHEN "errorMessage" LIKE '%user cannot be found%' OR "errorMessage" LIKE '%archived or deleted%'
           OR "errorMessage" LIKE '%disabled access to Instagram Direct%' OR "errorMessage" LIKE '%outside of allowed window%' THEN 'recipient_unavailable'
         WHEN "errorMessage" LIKE 'TokenExpiredError%' OR "errorMessage" ILIKE '%access token%' THEN 'token'

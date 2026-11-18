@@ -1,6 +1,6 @@
 export const FAILURE_REASONS = [
   { key: "rate_limited", label: "Rate limited", color: "#f97316" },
-  { key: "already_replied", label: "Already replied", color: "#3f3f46" },
+  { key: "refused", label: "Refused", color: "#3f3f46" },
   { key: "recipient_unavailable", label: "Recipient unavailable", color: "#fdba74" },
   { key: "account_blocked", label: "Account blocked", color: "#a1a1aa" },
   { key: "token", label: "Token", color: "#c2410c" },
