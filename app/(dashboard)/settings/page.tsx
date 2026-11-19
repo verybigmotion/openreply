@@ -203,11 +203,12 @@ export default function SettingsPage() {
                   <p className="mt-1 text-xs text-muted">
                     {account.provider === "ZERNIO" ? (
                       <>{t("Connected via Zernio")} · </>
-                    ) : account.platform === "FACEBOOK" ? (
-                      account.tokenRevokedAt && (
-                        <span className="text-error">{t("Access revoked. Reconnect the Page.")} · </span>
-                      )
-                    ) : (
+                    ) : account.tokenRevokedAt ? (
+                      <span className="text-error">
+                        {account.platform === "FACEBOOK"
+                          ? t("Access revoked. Reconnect the Page.")
+                          : t("Access revoked. Reconnect the account.")} · </span>
+                    ) : account.platform === "FACEBOOK" ? null : (
                       <>
                         {t("Token expires")}{" "}
                         {account.tokenExpiresAt

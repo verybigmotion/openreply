@@ -35,6 +35,8 @@ const {
     },
     socialAccount: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
     },
     operationalEvent: {
       create: vi.fn(),
@@ -658,6 +660,26 @@ describe("DM Worker — Full Pipeline", () => {
       .map(([args]) => args.data)
       .find((data) => data.status === "FAILED");
     expect(isPermanentDMFailure(failedLog)).toBe(true);
+  });
+
+  it("marks the account revoked when Instagram invalidates its token", async () => {
+    const { TokenExpiredError } = await import("@/lib/meta/client");
+    mockSendPrivateReply.mockRejectedValue(new TokenExpiredError("Session invalidated"));
+    mockPrisma.socialAccount.findFirst.mockResolvedValue({
+      id: "ig_account_row_1",
+      workspaceId: "workspace_123",
+      username: "barbara.hustles",
+    });
+
+    await expect(getProcessor()(createMockJob())).rejects.toThrow("Session invalidated");
+
+    expect(mockPrisma.socialAccount.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tokenRevokedAt: null, externalId: "ig_456" } })
+    );
+    expect(mockPrisma.socialAccount.update).toHaveBeenCalledWith({
+      where: { id: "ig_account_row_1" },
+      data: { tokenRevokedAt: expect.any(Date) },
+    });
   });
 
   it("does not retry the DM of a comment Instagram already refused for good", async () => {

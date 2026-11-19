@@ -389,6 +389,7 @@
   "Webhook configured. Choose an Instagram account for OpenReply:": "Webhook 已設定，請選擇要在 OpenReply 使用的 Instagram 帳號：",
   "Webhook pending": "Webhook 尚未就緒",
   "Access revoked. Reconnect the Page.": "存取權已撤銷，請重新連結粉絲專頁。",
+  "Access revoked. Reconnect the account.": "存取權已撤銷，請重新連結帳號。",
   "Webhook ready": "Webhook 已就緒",
   "Wed": "週三",
   "When someone comments on": "當有人在以下內容留言",

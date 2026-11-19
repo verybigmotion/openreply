@@ -1431,10 +1431,32 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
   try {
     await dispatchJob(job);
   } catch (error) {
+    if (error instanceof TokenExpiredError) await markTokenRevoked(job.data, error);
     if (error instanceof ZernioDeliveryUnconfirmedError || error instanceof PermissionError)
       throw new UnrecoverableError(error.message);
     throw error;
   }
+}
+
+async function markTokenRevoked(data: DmQueueJob, error: TokenExpiredError) {
+  const account = await prisma.socialAccount.findFirst({
+    where: {
+      tokenRevokedAt: null,
+      ...(data.accountConnectionId ? { id: data.accountConnectionId } : { externalId: data.instagramAccountId }),
+    },
+    select: { id: true, workspaceId: true, username: true },
+  });
+  if (!account) return;
+  await prisma.socialAccount.update({ where: { id: account.id }, data: { tokenRevokedAt: new Date() } });
+  await prisma.operationalEvent.create({
+    data: {
+      workspaceId: account.workspaceId,
+      source: "TOKEN_REFRESH",
+      level: "ERROR",
+      message: `Access revoked for @${account.username}; reconnect the account: ${error.message}`,
+      payload: { socialAccountId: account.id, username: account.username },
+    },
+  });
 }
 
 const PROCESS_ERROR_RECORD_INTERVAL_MS = 60_000;
