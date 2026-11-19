@@ -166,6 +166,8 @@ export default function DmFailureChart(props: { days: FailureDay[]; accounts: Fa
     return arc;
   });
 
+  const peakCount = Math.max(0, ...(creators?.days.map(sumValues) ?? []));
+  const countMax = Math.max(Y_TICKS.length - 1, Math.ceil(peakCount / (Y_TICKS.length - 1)) * (Y_TICKS.length - 1));
   const legendSeries: readonly Series[] = drilled ? drilled.series : reasons;
   const legendRecent = drilled ? drilled.recent : reasonRecent;
   const legendUnfiltered = drilled && allCreators ? allCreators.recent : reasonPoint("last24h", props.last24h, []);
@@ -357,8 +359,8 @@ export default function DmFailureChart(props: { days: FailureDay[]; accounts: Fa
           <div className="flex min-h-0 flex-1">
             <div className="relative w-11 shrink-0 text-xs text-[#71717a]">
               {Y_TICKS.map((tick) => (
-                <span key={tick} className="absolute right-2 translate-y-1/2" style={{ bottom: `${tick}%` }}>
-                  {tick}%
+                <span key={tick} className="absolute right-2 translate-y-1/2 tabular-nums" style={{ bottom: `${tick}%` }}>
+                  {drilled ? <AnimatedNumber value={(countMax * tick) / 100} format={formatCount} /> : `${tick}%`}
                 </span>
               ))}
             </div>
@@ -369,7 +371,7 @@ export default function DmFailureChart(props: { days: FailureDay[]; accounts: Fa
               <div className="absolute inset-0 flex gap-[4px] px-1">
                 {reasonDays.map((reasonDay, index) => {
                   const creatorDay = creators?.days[index] ?? null;
-                  const denominator = expanded && creatorDay ? creatorDay.total : reasonDay.total;
+                  const denominator = expanded ? countMax : reasonDay.total;
                   const today = index === reasonDays.length - 1;
                   const hovered = drilled ? drilled.days[index] : reasonDay;
                   return (
