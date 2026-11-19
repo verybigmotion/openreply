@@ -38,14 +38,15 @@ async function loadFailures(): Promise<{ days: FailureDay[]; accounts: FailureAc
   );
   const emptyDays = (): FailureDay[] => dayKeys.map((day) => ({ day, total: 0, ...emptyCounts() }));
   const days = emptyDays();
-  const last24h: FailureDay = { day: "last24h", total: 0, ...emptyCounts() };
+  const emptyLast24h = (): FailureDay => ({ day: "last24h", total: 0, ...emptyCounts() });
+  const last24h = emptyLast24h();
   const byAccount = new Map<string, FailureAccount>();
   for (const row of rows) {
     const index = dayKeys.indexOf(row.day);
     if (index === -1) continue;
-    const account = byAccount.get(row.account) ?? { username: row.account, total: 0, days: emptyDays(), ...emptyCounts() };
+    const account = byAccount.get(row.account) ?? { username: row.account, total: 0, days: emptyDays(), last24h: emptyLast24h(), ...emptyCounts() };
     byAccount.set(row.account, account);
-    for (const target of [days[index], account.days[index], account, ...(row.recent ? [last24h] : [])]) {
+    for (const target of [days[index], account.days[index], account, ...(row.recent ? [last24h, account.last24h] : [])]) {
       target.total += row.n;
       if (row.reason !== "sent") target[row.reason] += row.n;
     }

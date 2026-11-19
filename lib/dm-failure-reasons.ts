@@ -10,4 +10,4 @@ export const FAILURE_REASONS = [
 
 export type FailureReason = (typeof FAILURE_REASONS)[number]["key"];
 export type FailureDay = { day: string; total: number } & Record<FailureReason, number>;
-export type FailureAccount = { username: string; total: number; days: FailureDay[] } & Record<FailureReason, number>;
+export type FailureAccount = { username: string; total: number; days: FailureDay[]; last24h: FailureDay } & Record<FailureReason, number>;
