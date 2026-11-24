@@ -19,7 +19,7 @@ export const POST = withZernioManagement(async ({ workspaceId }, request) => {
     if (!current || current.profileId !== connection.profileId || current.webhookId !== connection.webhookId || decryptToken(current.apiKey) !== connection.apiKey) throw new ConnectionError('Connection settings changed. Refresh and try again.');
     const existing = await tx.socialAccount.findUnique({ where: { externalId: remote.externalId } });
     if (existing && (existing.workspaceId !== workspaceId || existing.provider !== 'ZERNIO')) throw new ConnectionError('This Instagram account is already connected. Existing connections are not migrated automatically.', 409);
-    const data = { username: remote.username, name: remote.name, zernioAccountId: remote.id, webhookSubscribed: true };
+    const data = { username: remote.username, name: remote.name, zernioAccountId: remote.id, webhookSubscribed: true, archivedAt: null };
     if (existing) {
       const updated = await tx.socialAccount.updateMany({
         where: { id: existing.id, workspaceId, provider: 'ZERNIO' }, data,

@@ -2,11 +2,14 @@ import { prisma } from "@/lib/db/client";
 import { matchRoster, parseRoster, resolveFacebookId, type ConnectionState, type RosterItem } from "@/lib/roster";
 import type { SocialPlatform } from "@/lib/social-platform";
 import CopyButton from "@/components/copy-button";
+import { archiveSocialAccounts, unarchiveSocialAccounts } from "@/lib/operator-actions";
+import Link from "next/link";
 
 const STATE_CLASS: Record<ConnectionState, string> = {
   connected: "bg-success/10 text-success",
   expired: "bg-error/10 text-error",
   revoked: "bg-error/10 text-error",
+  archived: "bg-surface-hover text-muted",
   "not connected": "bg-warning/10 text-warning",
 };
 
@@ -46,7 +49,34 @@ async function withCopyValues(items: RosterItem[]): Promise<ListedItem[]> {
   );
 }
 
-function ItemList({ title, items }: { title: string; items: ListedItem[] }) {
+function AccountAction({ item, action }: { item: ListedItem; action: "archive" | "unarchive" }) {
+  if (item.accountIds.length === 0) return null;
+  return (
+    <form action={action === "archive" ? archiveSocialAccounts : unarchiveSocialAccounts} className="shrink-0">
+      {item.accountIds.map((id) => (
+        <input key={id} type="hidden" name="socialAccountId" value={id} />
+      ))}
+      {action === "archive" ? (
+        <button
+          type="submit"
+          title={`Archive ${item.label}`}
+          aria-label={`Archive ${item.label}`}
+          className="rounded p-1 text-muted transition-colors hover:bg-error/10 hover:text-error"
+        >
+          <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
+          </svg>
+        </button>
+      ) : (
+        <button type="submit" className="rounded px-1.5 py-0.5 text-xs text-accent transition-colors hover:bg-accent/10">
+          Unarchive
+        </button>
+      )}
+    </form>
+  );
+}
+
+function ItemList({ title, items, action }: { title: string; items: ListedItem[]; action?: "archive" | "unarchive" }) {
   return (
     <div>
       <h3 className="text-sm font-semibold text-foreground">
@@ -67,6 +97,7 @@ function ItemList({ title, items }: { title: string; items: ListedItem[] }) {
             )}
             {item.copyValue && <CopyButton value={item.copyValue} />}
             <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs ${STATE_CLASS[item.state]}`}>{item.state}</span>
+            {item.state === "archived" ? <AccountAction item={item} action="unarchive" /> : action && <AccountAction item={item} action={action} />}
           </li>
         ))}
       </ul>
@@ -74,7 +105,7 @@ function ItemList({ title, items }: { title: string; items: ListedItem[] }) {
   );
 }
 
-export default async function OperatorRoster() {
+export default async function OperatorRoster({ showArchived }: { showArchived: boolean }) {
   const csvUrl = process.env.ROSTER_CSV_URL;
   if (!csvUrl) {
     return <p className="panel rounded p-4 text-sm text-muted">Set ROSTER_CSV_URL to the sheet&apos;s CSV export link to compare it with OpenReply.</p>;
@@ -83,14 +114,14 @@ export default async function OperatorRoster() {
   const [response, accounts] = await Promise.all([
     fetch(csvUrl).catch(() => null),
     prisma.socialAccount.findMany({
-      select: { id: true, workspaceId: true, platform: true, username: true, tokenRevokedAt: true, tokenExpiresAt: true },
+      select: { id: true, workspaceId: true, platform: true, username: true, tokenRevokedAt: true, tokenExpiresAt: true, archivedAt: true },
     }),
   ]);
   if (!response?.ok) {
     return <p className="panel rounded p-4 text-sm text-error">Could not load the sheet{response ? ` (HTTP ${response.status})` : ""}.</p>;
   }
 
-  const { items, toConnect, toRemove, notInSheet, issues } = matchRoster(parseRoster(await response.text()), accounts);
+  const { items, toConnect, toRemove, notInSheet, archived, issues } = matchRoster(parseRoster(await response.text()), accounts);
   const groups = { ok: items.filter((item) => item.activity === "active" && item.state === "connected"), toConnect, toRemove };
   const rows = PLATFORMS.map(({ platform, label }) => ({
     platform,
@@ -98,11 +129,22 @@ export default async function OperatorRoster() {
     counts: SEGMENTS.map((segment) => ({ ...segment, count: groups[segment.key].filter((item) => item.platform === platform).length })),
   }));
   const widest = Math.max(1, ...rows.map((row) => row.counts.reduce((sum, segment) => sum + segment.count, 0)));
-  const [listedToConnect, listedToRemove, listedNotInSheet] = await Promise.all([toConnect, toRemove, notInSheet].map(withCopyValues));
+  const [listedToConnect, listedToRemove, listedNotInSheet, listedArchived] = await Promise.all(
+    [toConnect, toRemove, notInSheet, showArchived ? archived : []].map(withCopyValues)
+  );
 
   return (
     <section className="panel rounded p-4 sm:p-6">
-      <h2 className="text-base font-semibold text-foreground">Sheet vs OpenReply</h2>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-base font-semibold text-foreground">Sheet vs OpenReply</h2>
+        <Link
+          href={showArchived ? "/operator/analytics" : "/operator/analytics?archived=1"}
+          scroll={false}
+          className="rounded px-2 py-1 text-xs text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+        >
+          {showArchived ? "Hide archived" : `Show archived (${archived.length})`}
+        </Link>
+      </div>
 
       <div className="mt-4 space-y-3">
         {rows.map((row) => (
@@ -139,8 +181,8 @@ export default async function OperatorRoster() {
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <ItemList title="To connect" items={listedToConnect} />
-        <ItemList title="To remove" items={listedToRemove} />
-        <ItemList title="Not in sheet" items={listedNotInSheet} />
+        <ItemList title="To remove" items={listedToRemove} action="archive" />
+        <ItemList title="Not in sheet" items={listedNotInSheet} action="archive" />
         <div>
           <h3 className="text-sm font-semibold text-foreground">
             Sheet issues <span className="font-normal text-muted">{issues.length}</span>
@@ -158,6 +200,7 @@ export default async function OperatorRoster() {
             ))}
           </ul>
         </div>
+        {showArchived && <ItemList title="Archived" items={listedArchived} />}
       </div>
     </section>
   );

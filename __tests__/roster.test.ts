@@ -63,7 +63,7 @@ describe("matchRoster", () => {
     const now = Date.parse("2026-11-24");
     const past = new Date(now - 1000);
     const account = (id: string, workspaceId: string, platform: RosterAccount["platform"], username: string, extra: Partial<RosterAccount> = {}): RosterAccount => ({
-      id, workspaceId, platform, username, tokenRevokedAt: null, tokenExpiresAt: null, ...extra,
+      id, workspaceId, platform, username, tokenRevokedAt: null, tokenExpiresAt: null, archivedAt: null, ...extra,
     });
     const result = matchRoster(
       parseRoster(csv),
@@ -75,9 +75,10 @@ describe("matchRoster", () => {
         account("5", "w2", "FACEBOOK", "Tai page"),
         account("6", "w3", "INSTAGRAM", "grind.with.nelly", { tokenRevokedAt: past }),
         account("7", "w4", "FACEBOOK", "Grind.With.Nelly"),
-        account("8", "w5", "INSTAGRAM", "zeyn.hustles"),
+        account("8", "w5", "INSTAGRAM", "zeyn.hustles", { archivedAt: past }),
         account("9", "w6", "INSTAGRAM", "newbie"),
         account("10", "w7", "FACEBOOK", "Bigmotion"),
+        account("11", "w8", "FACEBOOK", "Old page", { archivedAt: past }),
       ],
       now
     );
@@ -85,11 +86,29 @@ describe("matchRoster", () => {
     expect(brief(result.toConnect)).toEqual([
       ["Baptiste", "INSTAGRAM", "expired"],
       ["Nelly", "INSTAGRAM", "revoked"],
+      ["Zeyn", "INSTAGRAM", "not connected"],
     ]);
     expect(brief(result.toRemove)).toEqual([["Tainara Ramos", "INSTAGRAM", "connected"]]);
+    expect(result.toRemove[0].accountIds).toEqual(["4"]);
     expect(brief(result.notInSheet)).toEqual([["Bigmotion", "FACEBOOK", "connected"]]);
-    expect(result.issues.map((issue) => issue.message)).toEqual(
-      expect.arrayContaining(["Facebook Page Tai page is connected, but the sheet has no Facebook link", "Sheet has @zeyn_hustles, OpenReply has @zeyn.hustles"])
+    expect(brief(result.archived)).toEqual([
+      ["zeyn.hustles", "INSTAGRAM", "archived"],
+      ["Old page", "FACEBOOK", "archived"],
+    ]);
+    const messages = result.issues.map((issue) => issue.message);
+    expect(messages).toContain("Facebook Page Tai page is connected, but the sheet has no Facebook link");
+    expect(messages).not.toContain("Sheet has @zeyn_hustles, OpenReply has @zeyn.hustles");
+
+    const archivedInstagram = matchRoster(
+      parseRoster(csv),
+      [account("4", "w2", "INSTAGRAM", "grind.with.tai", { archivedAt: past }), account("5", "w2", "FACEBOOK", "Tai page")],
+      now
     );
+    expect(brief(archivedInstagram.notInSheet)).toEqual([]);
+    expect(archivedInstagram.issues.map((issue) => issue.message)).toContain("Facebook Page Tai page is connected, but the sheet has no Facebook link");
+
+    const live = matchRoster(parseRoster(csv), [account("8", "w5", "INSTAGRAM", "zeyn.hustles")], now);
+    expect(live.issues.map((issue) => issue.message)).toContain("Sheet has @zeyn_hustles, OpenReply has @zeyn.hustles");
+    expect(live.toConnect.find((item) => item.name === "Zeyn")).toBeUndefined();
   });
 });

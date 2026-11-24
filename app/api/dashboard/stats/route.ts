@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
         provider: true,
         tokenExpiresAt: true,
         tokenRevokedAt: true,
+        archivedAt: true,
         webhookSubscribed: true,
       },
     }),

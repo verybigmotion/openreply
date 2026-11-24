@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
-import { isOperatorUser } from "@/lib/operator";
+import { isOperatorUser, VISIBLE_WORKSPACE } from "@/lib/operator";
 import { openWorkspaceDiagnostics } from "@/lib/operator-actions";
 import { getWorkerHealth } from "@/lib/ops/worker-health";
 
@@ -30,10 +30,11 @@ async function loadOverview() {
   const since = new Date(now - DAY_MS);
   const [workspaces, lastWebhooks, failedDms, sentDms, unresolvedErrors, workerHealth] = await Promise.all([
     prisma.workspace.findMany({
+      where: VISIBLE_WORKSPACE,
       orderBy: { name: "asc" },
       include: {
         owner: { select: { email: true } },
-        socialAccounts: { select: { id: true, username: true, name: true, platform: true, provider: true, tokenExpiresAt: true, tokenRevokedAt: true, webhookSubscribed: true } },
+        socialAccounts: { where: { archivedAt: null }, select: { id: true, username: true, name: true, platform: true, provider: true, tokenExpiresAt: true, tokenRevokedAt: true, webhookSubscribed: true } },
       },
     }),
     prisma.$queryRaw<Array<{ workspaceId: string; createdAt: Date }>>`

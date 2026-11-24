@@ -141,6 +141,12 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  if (account.archivedAt) {
+    return NextResponse.json(
+      { success: false, error: "This account is archived." },
+      { status: 403 }
+    );
+  }
 
   try {
     const accessToken = await createSocialAccountContext(account);

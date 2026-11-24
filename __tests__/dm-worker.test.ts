@@ -373,7 +373,7 @@ describe("DM Worker — Full Pipeline", () => {
       where: {
         OR: [{ postId: "media_101" }, { matchAnyPost: true }],
         isActive: true,
-        socialAccount: { externalId: "ig_456" },
+        socialAccount: { externalId: "ig_456", archivedAt: null },
       },
       include: {
         socialAccount: true,

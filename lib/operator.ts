@@ -14,6 +14,10 @@ export function isOperatorEmail(email: string | null | undefined): boolean {
   return operators.includes(email.toLowerCase());
 }
 
+export const VISIBLE_WORKSPACE = {
+  NOT: { socialAccounts: { some: {}, every: { archivedAt: { not: null } } } },
+};
+
 export const isOperatorUser = cache(async (userId: string): Promise<boolean> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -32,6 +36,6 @@ export const getOperatorSelectedWorkspace = cache(
     }
     if (!selectedId) return null;
     if (!(await isOperatorUser(userId))) return null;
-    return prisma.workspace.findUnique({ where: { id: selectedId } });
+    return prisma.workspace.findFirst({ where: { id: selectedId, ...VISIBLE_WORKSPACE } });
   }
 );

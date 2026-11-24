@@ -25,6 +25,7 @@ interface SettingsData {
       provider?: "META" | "ZERNIO";
       tokenExpiresAt: string | null;
       tokenRevokedAt: string | null;
+      archivedAt: string | null;
       webhookSubscribed: boolean;
     }
   >;
@@ -199,6 +200,9 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     {socialAccountLabel(account)}
+                    {account.archivedAt && (
+                      <span className="ml-2 rounded bg-surface-hover px-1.5 py-0.5 text-xs font-medium text-muted">{t("Archived")}</span>
+                    )}
                   </p>
                   <p className="mt-1 text-xs text-muted">
                     {account.provider === "ZERNIO" ? (

@@ -6,7 +6,7 @@ import { socialAccountLabel } from "@/lib/social-account-label";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
-import { isOperatorUser } from "@/lib/operator";
+import { isOperatorUser, VISIBLE_WORKSPACE } from "@/lib/operator";
 
 export async function generateMetadata() {
   const { t } = await getI18n();
@@ -37,6 +37,7 @@ export default async function DashboardLayout({
     }),
     (await isOperatorUser(session.user.id))
       ? prisma.workspace.findMany({
+          where: VISIBLE_WORKSPACE,
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })

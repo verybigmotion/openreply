@@ -253,6 +253,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       isActive: true,
       socialAccount: {
         externalId: instagramAccountId,
+        archivedAt: null,
       },
     },
     include: {
@@ -847,7 +848,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   );
 
   const automation = await prisma.automation.findFirst({
-    where: { id: automationId, isActive: true, ...connectionScope(job.data) },
+    where: { id: automationId, isActive: true, socialAccount: { archivedAt: null }, ...connectionScope(job.data) },
     include: {
       socialAccount: true,
       workspace: true,
@@ -1109,7 +1110,7 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
   const { instagramAccountId, userId, automationId, commenterName } = job.data;
 
   const automation = await prisma.automation.findFirst({
-    where: { id: automationId, isActive: true, ...connectionScope(job.data) },
+    where: { id: automationId, isActive: true, socialAccount: { archivedAt: null }, ...connectionScope(job.data) },
     include: { socialAccount: true },
   });
 
@@ -1166,7 +1167,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       ...connectionScope(job.data),
       dmTriggerEnabled: true,
       isActive: true,
-      socialAccount: { externalId: instagramAccountId },
+      socialAccount: { externalId: instagramAccountId, archivedAt: null },
     },
     include: {
       socialAccount: true,

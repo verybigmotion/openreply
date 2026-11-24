@@ -23,9 +23,9 @@ type Home = { userId: string; workspaceId: string };
 
 export type SaveOutcome = { saved: number; taken: number };
 
-export async function saveSocialAccount(workspaceId: string, account: SocialAccountInput): Promise<boolean> {
+export async function saveSocialAccount(workspaceId: string, account: SocialAccountInput, { unarchive = true } = {}): Promise<boolean> {
   const { externalId, accessToken, ...fields } = account;
-  const data = { ...fields, accessToken: encryptToken(accessToken), tokenRevokedAt: null };
+  const data = { ...fields, accessToken: encryptToken(accessToken), tokenRevokedAt: null, ...(unarchive ? { archivedAt: null } : {}) };
   const existing = await prisma.socialAccount.findUnique({
     where: { externalId },
     select: { id: true, workspaceId: true, provider: true },
@@ -40,8 +40,8 @@ export async function saveSocialAccount(workspaceId: string, account: SocialAcco
   return true;
 }
 
-export async function saveSocialAccounts(workspaceId: string, accounts: SocialAccountInput[]): Promise<SaveOutcome> {
-  const results = await Promise.all(accounts.map((account) => saveSocialAccount(workspaceId, account)));
+export async function saveSocialAccounts(workspaceId: string, accounts: SocialAccountInput[], options?: { unarchive?: boolean }): Promise<SaveOutcome> {
+  const results = await Promise.all(accounts.map((account) => saveSocialAccount(workspaceId, account, options)));
   const saved = results.filter(Boolean).length;
   return { saved, taken: results.length - saved };
 }
@@ -96,7 +96,7 @@ export async function signInWithSocialAccounts(
   const existingHome = connectedHome ?? (await findLinkedHome(identity));
   if (!existingHome && allConnected) return { saved: 0, taken: accounts.length, signedIn: false };
   const home = existingHome ?? (await createInfluencer(names));
-  const outcome = await saveSocialAccounts(home.workspaceId, accounts);
+  const outcome = await saveSocialAccounts(home.workspaceId, accounts, { unarchive: false });
   const signedIn = Boolean(existingHome) || outcome.saved > 0;
   if (signedIn) {
     await linkIdentity(identity, home.userId);

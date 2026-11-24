@@ -19,9 +19,10 @@ export type RosterAccount = {
   username: string;
   tokenRevokedAt: Date | null;
   tokenExpiresAt: Date | null;
+  archivedAt: Date | null;
 };
 
-export type ConnectionState = "connected" | "expired" | "revoked" | "not connected";
+export type ConnectionState = "connected" | "expired" | "revoked" | "archived" | "not connected";
 
 export type RosterItem = {
   name: string;
@@ -30,6 +31,7 @@ export type RosterItem = {
   url: string | null;
   activity: SheetActivity;
   state: ConnectionState;
+  accountIds: string[];
 };
 
 const KNOWN_PLATFORMS = new Set(["Inst", "TT", "YT Shorts", "FB"]);
@@ -129,6 +131,7 @@ export function parseRoster(csv: string): { people: RosterPerson[]; issues: Shee
 }
 
 function stateOf(account: RosterAccount, now: number): ConnectionState {
+  if (account.archivedAt) return "archived";
   if (account.tokenRevokedAt) return "revoked";
   if (account.tokenExpiresAt && account.tokenExpiresAt.getTime() < now) return "expired";
   return "connected";
@@ -139,7 +142,8 @@ function bestState(accounts: RosterAccount[], now: number): ConnectionState {
   return STATE_PRIORITY.find((state) => states.includes(state)) ?? "not connected";
 }
 
-export function matchRoster({ people, issues: sheetIssues }: ReturnType<typeof parseRoster>, accounts: RosterAccount[], now = Date.now()) {
+export function matchRoster({ people, issues: sheetIssues }: ReturnType<typeof parseRoster>, allAccounts: RosterAccount[], now = Date.now()) {
+  const accounts = allAccounts.filter((account) => !account.archivedAt);
   const matchedIds = new Set<string>();
   const items: RosterItem[] = [];
   const issues = [...sheetIssues];
@@ -148,6 +152,9 @@ export function matchRoster({ people, issues: sheetIssues }: ReturnType<typeof p
 
   for (const person of people) {
     const handle = person.instagram?.handle;
+    const archivedWorkspaceIds = allAccounts
+      .filter((account) => account.archivedAt && account.platform === "INSTAGRAM" && account.username.toLowerCase() === handle)
+      .map((account) => account.workspaceId);
     let instagramAccounts = instagram.filter((account) => account.username.toLowerCase() === handle);
     if (handle && instagramAccounts.length === 0) {
       instagramAccounts = instagram.filter(
@@ -157,7 +164,7 @@ export function matchRoster({ people, issues: sheetIssues }: ReturnType<typeof p
         issues.push({ row: person.row, name: person.name, message: `Sheet has @${handle}, OpenReply has @${account.username}` });
       }
     }
-    const workspaceIds = new Set(instagramAccounts.map((account) => account.workspaceId));
+    const workspaceIds = new Set([...instagramAccounts.map((account) => account.workspaceId), ...archivedWorkspaceIds]);
     const pages = accounts.filter(
       (account) => account.platform === "FACEBOOK" && (account.username.toLowerCase() === handle || workspaceIds.has(account.workspaceId))
     );
@@ -171,6 +178,7 @@ export function matchRoster({ people, issues: sheetIssues }: ReturnType<typeof p
         url: `https://www.instagram.com/${person.instagram.handle}`,
         activity: person.instagram.activity,
         state: bestState(instagramAccounts, now),
+        accountIds: instagramAccounts.map((account) => account.id),
       });
     }
     if (person.facebook) {
@@ -181,26 +189,29 @@ export function matchRoster({ people, issues: sheetIssues }: ReturnType<typeof p
         url: person.facebook.url,
         activity: person.facebook.activity,
         state: bestState(pages, now),
+        accountIds: pages.map((account) => account.id),
       });
     } else if (pages.length > 0) {
       issues.push({ row: person.row, name: person.name, message: `Facebook Page ${pages[0].username} is connected, but the sheet has no Facebook link` });
     }
   }
 
+  const accountItem = (account: RosterAccount): RosterItem => ({
+    name: account.username,
+    platform: account.platform,
+    label: account.platform === "INSTAGRAM" ? `@${account.username}` : account.username,
+    url: null,
+    activity: null,
+    state: stateOf(account, now),
+    accountIds: [account.id],
+  });
+
   return {
     items,
     toConnect: items.filter((item) => item.activity === "active" && item.state !== "connected"),
     toRemove: items.filter((item) => item.activity === "inactive" && item.state !== "not connected"),
-    notInSheet: accounts
-      .filter((account) => !matchedIds.has(account.id))
-      .map((account): RosterItem => ({
-        name: account.username,
-        platform: account.platform,
-        label: account.platform === "INSTAGRAM" ? `@${account.username}` : account.username,
-        url: null,
-        activity: null,
-        state: stateOf(account, now),
-      })),
+    notInSheet: accounts.filter((account) => !matchedIds.has(account.id)).map(accountItem),
+    archived: allAccounts.filter((account) => account.archivedAt).map(accountItem),
     issues: issues.sort((a, b) => a.row - b.row),
   };
 }

@@ -55,14 +55,15 @@ async function loadFailures(): Promise<{ days: FailureDay[]; accounts: FailureAc
   return { days, accounts: [...byAccount.values()], last24h };
 }
 
-export default async function OperatorAnalyticsPage() {
+export default async function OperatorAnalyticsPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
   const userId = await getCurrentUserId();
   if (!userId || !(await isOperatorUser(userId))) redirect("/dashboard");
+  const { archived } = await searchParams;
 
   return (
     <div className="space-y-6">
-      <OperatorRoster />
       <DmFailureChart {...await loadFailures()} />
+      <OperatorRoster showArchived={archived === "1"} />
     </div>
   );
 }
