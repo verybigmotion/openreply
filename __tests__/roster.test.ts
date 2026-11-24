@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { matchRoster, parseRoster, type RosterAccount } from "../lib/roster";
+import { facebookIdFromUrl, matchRoster, parseRoster, type RosterAccount } from "../lib/roster";
+
+describe("facebookIdFromUrl", () => {
+  it("reads the numeric id from profile and people links", () => {
+    expect(facebookIdFromUrl("https://www.facebook.com/profile.php?id=61595032421343&sk=reels_tab")).toBe("61595032421343");
+    expect(facebookIdFromUrl("https://www.facebook.com/profile.php?mibextid=x&id=42")).toBe("42");
+    expect(facebookIdFromUrl("https://www.facebook.com/people/cesarhustlesss/61595835669405/?mibextid=wwXIfr")).toBe("61595835669405");
+    expect(facebookIdFromUrl("https://www.facebook.com/gih1705?mibextid=wwXIfr&rdid=r5L6")).toBe("gih1705");
+    expect(facebookIdFromUrl("https://www.facebook.com/share/1HNXD9B5gV/")).toBeNull();
+  });
+});
 
 const csv = [
   "№,Name,Platform,URL,Status,",

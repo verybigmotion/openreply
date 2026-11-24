@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/client";
-import { matchRoster, parseRoster, type ConnectionState, type RosterItem } from "@/lib/roster";
+import { matchRoster, parseRoster, resolveFacebookId, type ConnectionState, type RosterItem } from "@/lib/roster";
 import type { SocialPlatform } from "@/lib/social-platform";
+import CopyButton from "@/components/copy-button";
 
 const STATE_CLASS: Record<ConnectionState, string> = {
   connected: "bg-success/10 text-success",
@@ -34,7 +35,18 @@ function PlatformIcon({ platform }: { platform: SocialPlatform }) {
   );
 }
 
-function ItemList({ title, items }: { title: string; items: RosterItem[] }) {
+type ListedItem = RosterItem & { copyValue: string | null };
+
+async function withCopyValues(items: RosterItem[]): Promise<ListedItem[]> {
+  return Promise.all(
+    items.map(async (item) => ({
+      ...item,
+      copyValue: item.platform === "INSTAGRAM" ? item.label.replace(/^@/, "") : item.url ? await resolveFacebookId(item.url) : null,
+    }))
+  );
+}
+
+function ItemList({ title, items }: { title: string; items: ListedItem[] }) {
   return (
     <div>
       <h3 className="text-sm font-semibold text-foreground">
@@ -53,6 +65,7 @@ function ItemList({ title, items }: { title: string; items: RosterItem[] }) {
             ) : (
               item.label !== item.name && <span className="truncate text-muted">{item.label}</span>
             )}
+            {item.copyValue && <CopyButton value={item.copyValue} />}
             <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs ${STATE_CLASS[item.state]}`}>{item.state}</span>
           </li>
         ))}
@@ -85,6 +98,7 @@ export default async function OperatorRoster() {
     counts: SEGMENTS.map((segment) => ({ ...segment, count: groups[segment.key].filter((item) => item.platform === platform).length })),
   }));
   const widest = Math.max(1, ...rows.map((row) => row.counts.reduce((sum, segment) => sum + segment.count, 0)));
+  const [listedToConnect, listedToRemove, listedNotInSheet] = await Promise.all([toConnect, toRemove, notInSheet].map(withCopyValues));
 
   return (
     <section className="panel rounded p-4 sm:p-6">
@@ -124,9 +138,9 @@ export default async function OperatorRoster() {
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
-        <ItemList title="To connect" items={toConnect} />
-        <ItemList title="To remove" items={toRemove} />
-        <ItemList title="Not in sheet" items={notInSheet} />
+        <ItemList title="To connect" items={listedToConnect} />
+        <ItemList title="To remove" items={listedToRemove} />
+        <ItemList title="Not in sheet" items={listedNotInSheet} />
         <div>
           <h3 className="text-sm font-semibold text-foreground">
             Sheet issues <span className="font-normal text-muted">{issues.length}</span>

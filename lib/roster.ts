@@ -42,6 +42,29 @@ export function instagramHandle(url: string): string | null {
   return handle && !INSTAGRAM_PATHS.has(handle) ? handle : null;
 }
 
+const FACEBOOK_PATHS = new Set(["share", "people", "profile.php", "groups", "pages"]);
+
+export function facebookIdFromUrl(url: string): string | null {
+  const id = url.match(/profile\.php\?(?:[^#]*&)?id=(\d+)/i)?.[1] ?? url.match(/\/people\/[^/]+\/(\d+)/i)?.[1];
+  if (id) return id;
+  const username = url.match(/facebook\.com\/([A-Za-z0-9.]+)(?:[/?#]|$)/i)?.[1];
+  return username && !FACEBOOK_PATHS.has(username.toLowerCase()) ? username : null;
+}
+
+const resolvedFacebookIds = new Map<string, string | null>();
+
+export async function resolveFacebookId(url: string): Promise<string | null> {
+  const direct = facebookIdFromUrl(url);
+  if (direct || !/facebook\.com\/share\//i.test(url)) return direct;
+  if (resolvedFacebookIds.has(url)) return resolvedFacebookIds.get(url)!;
+  const location = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(5000), headers: { "User-Agent": "Mozilla/5.0" } })
+    .then((response) => response.headers.get("location"))
+    .catch(() => null);
+  const id = location ? facebookIdFromUrl(location) : null;
+  if (location) resolvedFacebookIds.set(url, id);
+  return id;
+}
+
 function looseHandle(handle: string) {
   return handle.toLowerCase().replace(/[._]/g, "");
 }
