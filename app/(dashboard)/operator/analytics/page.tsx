@@ -3,6 +3,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { isOperatorUser } from "@/lib/operator";
 import DmFailureChart from "@/components/dm-failure-chart";
+import OperatorRoster from "@/components/operator-roster";
 import { FAILURE_REASONS, type FailureAccount, type FailureDay, type FailureReason } from "@/lib/dm-failure-reasons";
 
 const DAYS = 30;
@@ -60,6 +61,7 @@ export default async function OperatorAnalyticsPage() {
 
   return (
     <div className="space-y-6">
+      <OperatorRoster />
       <DmFailureChart {...await loadFailures()} />
     </div>
   );

@@ -1,49 +1,85 @@
 import { describe, it, expect } from "vitest";
-import { matchRoster, parseRoster } from "../lib/roster";
+import { matchRoster, parseRoster, type RosterAccount } from "../lib/roster";
 
 const csv = [
   "№,Name,Platform,URL,Status,",
   "1,Baptiste,Inst,instagram.com/Leoo.hustles,Active,",
-  ",,TT,tiktok.com/@leoo.hustles,Active,22.10",
-  ",,FB,https://www.facebook.com/share/1HN/?mibextid=wwXIfr,Active,",
+  ",,TT,tiktok.com/@leoo.hustles,,22.10",
+  ",,FB,https://www.facebook.com/share/1HN/?mibextid=wwXIfr,Warming,",
   '2,"Tainara Ramos',
   '",Inst,https://www.instagram.com/grind.with.tai?utm_source=qr,Inactive,24.10',
   ",,FB,,Inactive,",
-  "21,,,,,",
-  "3,Ana,Inst,https://www.instagram.com/ana_hustles/reels/,Active,",
+  "3,,,,,",
+  "4,Nelly,Inst,https://www.instagram.com/grind.with.nelly/reels/,Active,",
   ",,FB,https://www.facebook.com/profile.php?id=1,Active,",
+  "5,Zeyn,Inst,https://www.instagram.com/zeyn_hustles,Active,",
+  "6,Newbie,Inst,https://www.instagram.com/newbie,,",
+  ",,FB,https://www.tiktok.com/@newbie,,",
+  "7,Cagla,Inst,,,",
+  ",,FB,,Active,",
+  "8,Twin,Inst,https://www.instagram.com/newbie,Activ,",
+  "9,Lost,Inst,https://www.instagram.com/p/ABC123,Active,",
+  ",,Threads,https://threads.net/@lost,Active,",
 ].join("\n");
 
 describe("parseRoster", () => {
-  it("groups platform rows under each numbered influencer", () => {
-    expect(parseRoster(csv)).toEqual([
-      { name: "Baptiste", instagram: "leoo.hustles", instagramStatus: "Active", facebookUrl: "https://www.facebook.com/share/1HN/?mibextid=wwXIfr", facebookStatus: "Active" },
-      { name: "Tainara Ramos", instagram: "grind.with.tai", instagramStatus: "Inactive", facebookUrl: null, facebookStatus: "" },
-      { name: "Ana", instagram: "ana_hustles", instagramStatus: "Active", facebookUrl: "https://www.facebook.com/profile.php?id=1", facebookStatus: "Active" },
+  it("groups platform rows under each named influencer and treats Warming as active", () => {
+    const { people } = parseRoster(csv);
+    expect(people.slice(0, 2)).toEqual([
+      { row: 2, name: "Baptiste", instagram: { handle: "leoo.hustles", activity: "active" }, facebook: { url: "https://www.facebook.com/share/1HN/?mibextid=wwXIfr", activity: "active" } },
+      { row: 5, name: "Tainara Ramos", instagram: { handle: "grind.with.tai", activity: "inactive" }, facebook: null },
+    ]);
+  });
+
+  it("flags what a person filling the sheet can get wrong", () => {
+    expect(parseRoster(csv).issues.map((issue) => `${issue.row} ${issue.name}: ${issue.message}`)).toEqual([
+      "7 : Number without a name",
+      "11 Newbie: Instagram status is empty",
+      "12 Newbie: Facebook status is empty",
+      "12 Newbie: Facebook link is not a facebook.com link: https://www.tiktok.com/@newbie",
+      "14 Cagla: Facebook is Active but has no link",
+      "15 Twin: Unknown Instagram status \"Activ\"",
+      "16 Lost: Instagram link has no username: https://www.instagram.com/p/ABC123",
+      "17 Lost: Unknown platform \"Threads\"",
+      "13 Cagla: No Instagram link",
+      "15 Twin: @newbie is also listed for Newbie",
+      "16 Lost: No Instagram link",
     ]);
   });
 });
 
 describe("matchRoster", () => {
-  it("resolves Facebook through the workspace of the matched Instagram account", () => {
+  it("lists what needs fixing on each side", () => {
     const now = Date.parse("2026-11-24");
     const past = new Date(now - 1000);
-    const future = new Date(now + 1000);
-    const rows = matchRoster(
+    const account = (id: string, workspaceId: string, platform: RosterAccount["platform"], username: string, extra: Partial<RosterAccount> = {}): RosterAccount => ({
+      id, workspaceId, platform, username, tokenRevokedAt: null, tokenExpiresAt: null, ...extra,
+    });
+    const result = matchRoster(
       parseRoster(csv),
       [
-        { workspaceId: "w1", platform: "INSTAGRAM", username: "leoo.hustles", tokenRevokedAt: null, tokenExpiresAt: future },
-        { workspaceId: "w1", platform: "FACEBOOK", username: "page", tokenRevokedAt: past, tokenExpiresAt: null },
-        { workspaceId: "w1", platform: "FACEBOOK", username: "page2", tokenRevokedAt: null, tokenExpiresAt: null },
-        { workspaceId: "w1", platform: "FACEBOOK", username: "page3", tokenRevokedAt: null, tokenExpiresAt: past },
-        { workspaceId: "w2", platform: "INSTAGRAM", username: "grind.with.tai", tokenRevokedAt: null, tokenExpiresAt: past },
+        account("1", "w1", "INSTAGRAM", "leoo.hustles", { tokenExpiresAt: past }),
+        account("2", "w1", "FACEBOOK", "Leoo page", { tokenRevokedAt: past }),
+        account("3", "w1", "FACEBOOK", "Leoo page 2"),
+        account("4", "w2", "INSTAGRAM", "grind.with.tai"),
+        account("5", "w2", "FACEBOOK", "Tai page"),
+        account("6", "w3", "INSTAGRAM", "grind.with.nelly", { tokenRevokedAt: past }),
+        account("7", "w4", "FACEBOOK", "Grind.With.Nelly"),
+        account("8", "w5", "INSTAGRAM", "zeyn.hustles"),
+        account("9", "w6", "INSTAGRAM", "newbie"),
+        account("10", "w7", "FACEBOOK", "Bigmotion"),
       ],
       now
     );
-    expect(rows.map((row) => [row.instagramState, row.facebookState])).toEqual([
-      ["connected", "connected"],
-      ["expired", null],
-      ["not connected", "check manually"],
+    const brief = (items: typeof result.toConnect) => items.map((item) => [item.name, item.platform, item.state]);
+    expect(brief(result.toConnect)).toEqual([
+      ["Baptiste", "INSTAGRAM", "expired"],
+      ["Nelly", "INSTAGRAM", "revoked"],
     ]);
+    expect(brief(result.toRemove)).toEqual([["Tainara Ramos", "INSTAGRAM", "connected"]]);
+    expect(brief(result.notInSheet)).toEqual([["Bigmotion", "FACEBOOK", "connected"]]);
+    expect(result.issues.map((issue) => issue.message)).toEqual(
+      expect.arrayContaining(["Facebook Page Tai page is connected, but the sheet has no Facebook link", "Sheet has @zeyn_hustles, OpenReply has @zeyn.hustles"])
+    );
   });
 });
