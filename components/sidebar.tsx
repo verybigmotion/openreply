@@ -49,6 +49,7 @@ export default function Sidebar({
         ...navItems,
         { label: "Operator", href: "/operator" } as const,
         { label: "Analytics", href: "/operator/analytics" } as const,
+        { label: "Roster", href: "/operator/roster" } as const,
       ]
     : navItems;
   const activeHref = items
